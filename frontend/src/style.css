@@ -1411,3 +1411,66 @@ input:focus + .slider {
         display: none;
     }
 }
+
+/* ==================== Total Traffic Stats ==================== */
+
+.total-traffic-card {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, rgba(29, 155, 240, 0.1) 100%);
+    border-color: rgba(29, 155, 240, 0.3);
+}
+
+.total-traffic-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(29, 155, 240, 0.2);
+}
+
+.total-avatar {
+    background: linear-gradient(135deg, var(--accent) 0%, #3b82f6 100%) !important;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bandwidth-card {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, rgba(0, 186, 124, 0.1) 100%);
+    border-color: rgba(0, 186, 124, 0.3);
+}
+
+.bandwidth-card:hover {
+    border-color: var(--success);
+    box-shadow: 0 4px 20px rgba(0, 186, 124, 0.2);
+}
+
+.speed-avatar {
+    background: linear-gradient(135deg, var(--success) 0%, #10b981 100%) !important;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.total-traffic-details {
+    grid-template-columns: repeat(4, 1fr) !important;
+}
+
+@media (max-width: 600px) {
+    .total-traffic-details {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1rem;
+    }
+}
+
+/* Enhanced User Stats */
+.user-stat-details {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+    .user-stat-details {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+

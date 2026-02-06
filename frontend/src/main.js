@@ -954,12 +954,84 @@ class Dashboard {
         this.elements.bytesReceived.textContent = this.formatBytes(stats.total_bytes_received);
         this.elements.uptime.textContent = this.formatDuration(stats.uptime_secs);
 
-        // Update per-user stats
+        // Update per-user stats or total traffic stats
         if (stats.users && stats.users.length > 0) {
             this.renderUserStats(stats.users);
         } else {
-            this.elements.userStatsPanel.style.display = 'none';
+            // No users - show total traffic summary
+            this.renderTotalTrafficStats(stats);
         }
+    }
+
+    renderTotalTrafficStats(stats) {
+        const panel = this.elements.userStatsPanel;
+        const grid = this.elements.userStatsGrid;
+        
+        if (!panel || !grid) return;
+        
+        // Update panel header to show "Traffic Summary"
+        const header = panel.querySelector('h2');
+        if (header) {
+            header.textContent = '📊 Traffic Summary';
+        }
+        
+        panel.style.display = 'block';
+        
+        const totalBytes = stats.total_bytes_sent + stats.total_bytes_received;
+        
+        grid.innerHTML = `
+            <div class="user-stat-card total-traffic-card">
+                <div class="user-stat-header">
+                    <div class="user-stat-name">
+                        <div class="user-stat-avatar total-avatar">📈</div>
+                        <h4>Total Traffic</h4>
+                    </div>
+                    <span class="user-stat-active ${stats.active_connections > 0 ? 'has-active' : 'no-active'}">
+                        ${stats.active_connections} active
+                    </span>
+                </div>
+                <div class="user-stat-details total-traffic-details">
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${stats.total_connections.toLocaleString()}</span>
+                        <span class="user-stat-label">Total Connections</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(stats.total_bytes_sent)}</span>
+                        <span class="user-stat-label">⬆️ Uploaded</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(stats.total_bytes_received)}</span>
+                        <span class="user-stat-label">⬇️ Downloaded</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(totalBytes)}</span>
+                        <span class="user-stat-label">📊 Total</span>
+                    </div>
+                </div>
+            </div>
+            <div class="user-stat-card bandwidth-card">
+                <div class="user-stat-header">
+                    <div class="user-stat-name">
+                        <div class="user-stat-avatar speed-avatar">⚡</div>
+                        <h4>Session Info</h4>
+                    </div>
+                </div>
+                <div class="user-stat-details">
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatDuration(stats.uptime_secs)}</span>
+                        <span class="user-stat-label">Uptime</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${new Date(stats.started_at).toLocaleString()}</span>
+                        <span class="user-stat-label">Started At</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">🔓</span>
+                        <span class="user-stat-label">Auth Disabled</span>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     renderUserStats(users) {
@@ -967,6 +1039,12 @@ class Dashboard {
         const grid = this.elements.userStatsGrid;
         
         if (!panel || !grid) return;
+        
+        // Update panel header to show "Per-User Traffic"
+        const header = panel.querySelector('h2');
+        if (header) {
+            header.textContent = '👥 Per-User Traffic';
+        }
         
         panel.style.display = 'block';
         
@@ -993,6 +1071,10 @@ class Dashboard {
                     <div class="user-stat-item">
                         <span class="user-stat-value">${this.formatBytes(user.total_bytes_received)}</span>
                         <span class="user-stat-label">Received</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(user.total_bytes_sent + user.total_bytes_received)}</span>
+                        <span class="user-stat-label">Total</span>
                     </div>
                 </div>
             </div>
