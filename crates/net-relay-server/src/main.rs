@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use net_relay_api::create_router;
 use net_relay_core::proxy::{HttpProxy, Socks5Proxy};
-use net_relay_core::{Config, Stats};
+use net_relay_core::{Config, ConfigManager, Stats};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load configuration
-    let config = load_config()?;
+    let (config, config_path) = load_config()?;
 
     // Initialize logging
     init_logging(&config.logging.level);
@@ -24,6 +24,9 @@ async fn main() -> Result<()> {
         "Starting net-relay proxy server v{}",
         env!("CARGO_PKG_VERSION")
     );
+
+    // Create config manager for runtime configuration
+    let config_manager = ConfigManager::new(config.clone(), config_path);
 
     // Create shared stats
     let stats = Arc::new(Stats::new(1000));
@@ -45,7 +48,12 @@ async fn main() -> Result<()> {
     let socks_addr: SocketAddr = format!("{}:{}", config.server.host, config.server.socks_port)
         .parse()
         .context("Invalid SOCKS5 bind address")?;
-    let socks_proxy = Socks5Proxy::new(socks_addr, auth.clone(), Arc::clone(&stats));
+    let socks_proxy = Socks5Proxy::new(
+        socks_addr,
+        auth.clone(),
+        Arc::clone(&stats),
+        config_manager.clone(),
+    );
 
     let socks_handle = tokio::spawn(async move {
         if let Err(e) = socks_proxy.run().await {
@@ -57,7 +65,7 @@ async fn main() -> Result<()> {
     let http_addr: SocketAddr = format!("{}:{}", config.server.host, config.server.http_port)
         .parse()
         .context("Invalid HTTP bind address")?;
-    let http_proxy = HttpProxy::new(http_addr, auth, Arc::clone(&stats));
+    let http_proxy = HttpProxy::new(http_addr, auth, Arc::clone(&stats), config_manager.clone());
 
     let http_handle = tokio::spawn(async move {
         if let Err(e) = http_proxy.run().await {
@@ -71,7 +79,7 @@ async fn main() -> Result<()> {
         .context("Invalid API bind address")?;
 
     let static_dir = find_static_dir();
-    let router = create_router(Arc::clone(&stats), static_dir);
+    let router = create_router(Arc::clone(&stats), config_manager, static_dir);
 
     let api_handle = tokio::spawn(async move {
         info!("API server listening on http://{}", api_addr);
@@ -101,7 +109,8 @@ async fn main() -> Result<()> {
 }
 
 /// Load configuration from file or use defaults.
-fn load_config() -> Result<Config> {
+/// Returns (Config, Option<config_path>)
+fn load_config() -> Result<(Config, Option<String>)> {
     let config_paths = ["config.toml", "/etc/net-relay/config.toml"];
 
     for path in config_paths {
@@ -111,12 +120,12 @@ fn load_config() -> Result<Config> {
             let config: Config = toml::from_str(&content)
                 .with_context(|| format!("Failed to parse config file: {}", path))?;
             info!("Loaded configuration from {}", path);
-            return Ok(config);
+            return Ok((config, Some(path.to_string())));
         }
     }
 
     info!("No config file found, using defaults");
-    Ok(Config::default())
+    Ok((Config::default(), None))
 }
 
 /// Initialize logging with the specified level.

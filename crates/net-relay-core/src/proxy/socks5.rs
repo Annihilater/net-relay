@@ -6,6 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
+use crate::config::ConfigManager;
 use crate::connection::{Connection, Protocol};
 use crate::error::{Error, Result};
 use crate::proxy::relay::relay_tcp;
@@ -25,6 +26,7 @@ const REP_SUCCESS: u8 = 0x00;
 const REP_GENERAL_FAILURE: u8 = 0x01;
 const REP_CONNECTION_REFUSED: u8 = 0x05;
 const REP_CMD_NOT_SUPPORTED: u8 = 0x07;
+const REP_NOT_ALLOWED: u8 = 0x02;
 #[allow(dead_code)]
 const REP_ADDR_NOT_SUPPORTED: u8 = 0x08;
 
@@ -38,15 +40,24 @@ pub struct Socks5Proxy {
 
     /// Statistics collector.
     stats: Arc<Stats>,
+
+    /// Configuration manager.
+    config_manager: ConfigManager,
 }
 
 impl Socks5Proxy {
     /// Create a new SOCKS5 proxy.
-    pub fn new(bind_addr: SocketAddr, auth: Option<(String, String)>, stats: Arc<Stats>) -> Self {
+    pub fn new(
+        bind_addr: SocketAddr,
+        auth: Option<(String, String)>,
+        stats: Arc<Stats>,
+        config_manager: ConfigManager,
+    ) -> Self {
         Self {
             bind_addr,
             auth,
             stats,
+            config_manager,
         }
     }
 
@@ -60,9 +71,12 @@ impl Socks5Proxy {
                 Ok((stream, client_addr)) => {
                     let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
+                    let config_manager = self.config_manager.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handle_client(stream, client_addr, auth, stats).await {
+                        if let Err(e) =
+                            handle_client(stream, client_addr, auth, stats, config_manager).await
+                        {
                             debug!("Connection from {} error: {}", client_addr, e);
                         }
                     });
@@ -81,8 +95,16 @@ async fn handle_client(
     client_addr: SocketAddr,
     auth: Option<(String, String)>,
     stats: Arc<Stats>,
+    config_manager: ConfigManager,
 ) -> Result<()> {
     debug!("New SOCKS5 connection from {}", client_addr);
+
+    // Check IP access control
+    let client_ip = client_addr.ip().to_string();
+    if !config_manager.is_ip_allowed(&client_ip).await {
+        warn!("IP blocked: {}", client_ip);
+        return Err(Error::AccessDenied(format!("IP blocked: {}", client_ip)));
+    }
 
     // Read version and auth methods
     let mut buf = [0u8; 2];
@@ -143,6 +165,16 @@ async fn handle_client(
 
     // Parse target address
     let (target_addr, target_port) = parse_address(&mut stream, atyp).await?;
+
+    // Check target access control
+    if !config_manager.is_target_allowed(&target_addr, None).await {
+        warn!("Target blocked: {}:{}", target_addr, target_port);
+        send_reply(&mut stream, REP_NOT_ALLOWED).await?;
+        return Err(Error::AccessDenied(format!(
+            "Target blocked: {}:{}",
+            target_addr, target_port
+        )));
+    }
 
     debug!("SOCKS5 CONNECT to {}:{}", target_addr, target_port);
 

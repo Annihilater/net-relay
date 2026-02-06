@@ -176,3 +176,67 @@ SOCKS5 代理支持远程 DNS 解析。如果遇到问题：
 1. 查看应用自身的代理设置
 2. 使用 proxychains 强制代理
 3. 使用 PAC 文件
+
+## 方法五：通过 SSH 隧道加密连接（类似 ssh -D）
+
+**推荐用于远程访问，提供加密传输**
+
+这种方法将 SSH 隧道与 Net-Relay 结合，等同于 `ssh -D` 动态端口转发，但具备 Net-Relay 的管理功能。
+
+### 步骤 1：配置 Net-Relay 只监听本地
+
+修改公司电脑上的 `config.toml`：
+
+```toml
+[server]
+socks5_listen = "127.0.0.1:1080"    # 只接受本地连接
+http_listen = "127.0.0.1:8080"
+api_listen = "127.0.0.1:3000"
+```
+
+### 步骤 2：创建 SSH 隧道
+
+在 Mac 上执行：
+
+```bash
+# 转发本地端口到远程 Net-Relay
+ssh -L 1080:localhost:1080 -L 3000:localhost:3000 user@公司电脑IP
+
+# 后台运行方式：
+ssh -f -N -L 1080:localhost:1080 -L 3000:localhost:3000 user@公司电脑IP
+```
+
+可以添加到 `~/.ssh/config`：
+
+```ssh-config
+Host company-relay
+    HostName 公司电脑IP
+    User 你的用户名
+    LocalForward 1080 localhost:1080
+    LocalForward 3000 localhost:3000
+```
+
+然后只需运行 `ssh -f -N company-relay`
+
+### 步骤 3：配置 Mac 使用隧道
+
+现在将 SOCKS 代理设置为 `localhost:1080`，所有流量通过加密的 SSH 隧道到达 Net-Relay。
+
+### SSH 隧道方式的优势
+
+- **加密传输**：Mac 与公司电脑之间的流量完全加密
+- **防火墙友好**：只需 SSH 端口（22），无需开放其他端口
+- **远程访问**：可从任何有 SSH 访问的地方使用
+- **管理功能**：保留 Net-Relay 的访问控制、统计、Web 界面
+
+### 与 ssh -D 的对比
+
+| 功能 | ssh -D | Net-Relay + SSH 隧道 |
+|------|--------|---------------------|
+| SOCKS5 代理 | ✅ | ✅ |
+| 加密传输 | ✅ | ✅ |
+| IP 黑白名单 | ❌ | ✅ |
+| 域名/路径规则 | ❌ | ✅ |
+| 连接监控 | ❌ | ✅ |
+| Web 管理界面 | ❌ | ✅ |
+| 配置持久化 | ❌ | ✅ |

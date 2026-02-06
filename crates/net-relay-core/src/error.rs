@@ -51,4 +51,8 @@ pub enum Error {
     /// Maximum connections reached.
     #[error("Maximum connections limit reached")]
     MaxConnectionsReached,
+
+    /// Access denied by access control rules.
+    #[error("Access denied: {0}")]
+    AccessDenied(String),
 }

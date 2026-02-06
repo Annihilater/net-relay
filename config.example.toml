@@ -48,3 +48,32 @@ enabled = true
 
 # Statistics retention period in hours
 retention_hours = 24
+
+[access_control]
+# Default mode: true = blacklist mode (allow all except blocked)
+#               false = whitelist mode (block all except allowed)
+allow_by_default = true
+
+# IP blacklist - clients from these IPs will be denied
+# ip_blacklist = ["192.168.1.100", "10.0.0.50"]
+
+# IP whitelist - only these IPs are allowed (when allow_by_default = false)
+# ip_whitelist = ["192.168.1.0/24", "10.0.0.0/8"]
+
+# Domain/path access rules
+# Each rule can block or allow specific domains and optional paths
+# Wildcards supported: *.example.com, /api/*
+# 
+# Example rules:
+# [[access_control.rules]]
+# name = "Block social media"
+# domain = "*.facebook.com"
+# action = "block"
+# enabled = true
+# 
+# [[access_control.rules]]
+# name = "Block specific path"
+# domain = "example.com"
+# path = "/admin/*"
+# action = "block"
+# enabled = true

@@ -6,6 +6,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
+use crate::config::ConfigManager;
 use crate::connection::{Connection, Protocol};
 use crate::error::{Error, Result};
 use crate::proxy::relay::relay_tcp;
@@ -21,15 +22,24 @@ pub struct HttpProxy {
 
     /// Statistics collector.
     stats: Arc<Stats>,
+
+    /// Configuration manager.
+    config_manager: ConfigManager,
 }
 
 impl HttpProxy {
     /// Create a new HTTP CONNECT proxy.
-    pub fn new(bind_addr: SocketAddr, auth: Option<(String, String)>, stats: Arc<Stats>) -> Self {
+    pub fn new(
+        bind_addr: SocketAddr,
+        auth: Option<(String, String)>,
+        stats: Arc<Stats>,
+        config_manager: ConfigManager,
+    ) -> Self {
         Self {
             bind_addr,
             auth,
             stats,
+            config_manager,
         }
     }
 
@@ -43,9 +53,12 @@ impl HttpProxy {
                 Ok((stream, client_addr)) => {
                     let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
+                    let config_manager = self.config_manager.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handle_client(stream, client_addr, auth, stats).await {
+                        if let Err(e) =
+                            handle_client(stream, client_addr, auth, stats, config_manager).await
+                        {
                             debug!("Connection from {} error: {}", client_addr, e);
                         }
                     });
@@ -64,8 +77,16 @@ async fn handle_client(
     client_addr: SocketAddr,
     auth: Option<(String, String)>,
     stats: Arc<Stats>,
+    config_manager: ConfigManager,
 ) -> Result<()> {
     debug!("New HTTP CONNECT connection from {}", client_addr);
+
+    // Check IP access control
+    let client_ip = client_addr.ip().to_string();
+    if !config_manager.is_ip_allowed(&client_ip).await {
+        warn!("IP blocked: {}", client_ip);
+        return Err(Error::AccessDenied(format!("IP blocked: {}", client_ip)));
+    }
 
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
@@ -120,6 +141,17 @@ async fn handle_client(
             stream.write_all(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"Proxy\"\r\n\r\n").await?;
             return Err(Error::AuthenticationFailed);
         }
+    }
+
+    // Check target access control
+    if !config_manager.is_target_allowed(&target_addr, None).await {
+        warn!("Target blocked: {}:{}", target_addr, target_port);
+        let mut stream = reader.into_inner();
+        stream.write_all(b"HTTP/1.1 403 Forbidden\r\n\r\n").await?;
+        return Err(Error::AccessDenied(format!(
+            "Target blocked: {}:{}",
+            target_addr, target_port
+        )));
     }
 
     debug!("HTTP CONNECT to {}:{}", target_addr, target_port);

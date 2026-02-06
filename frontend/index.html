@@ -11,122 +11,201 @@
         <header class="header">
             <div class="header-content">
                 <h1>🌐 Net-Relay</h1>
+                <nav class="nav-tabs">
+                    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                    <button class="tab-btn" data-tab="settings">Settings</button>
+                </nav>
                 <span class="status" id="status">Connecting...</span>
             </div>
         </header>
 
         <main class="main">
-            <!-- Stats Cards -->
-            <section class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">🔌</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="active-connections">-</span>
-                        <span class="stat-label">Active Connections</span>
+            <!-- Dashboard Tab -->
+            <div id="dashboard-tab" class="tab-content active">
+                <!-- Stats Cards -->
+                <section class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🔌</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="active-connections">-</span>
+                            <span class="stat-label">Active Connections</span>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="total-connections">-</span>
-                        <span class="stat-label">Total Connections</span>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="total-connections">-</span>
+                            <span class="stat-label">Total Connections</span>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⬆️</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="bytes-sent">-</span>
-                        <span class="stat-label">Data Sent</span>
+                    <div class="stat-card">
+                        <div class="stat-icon">⬆️</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="bytes-sent">-</span>
+                            <span class="stat-label">Data Sent</span>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⬇️</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="bytes-received">-</span>
-                        <span class="stat-label">Data Received</span>
+                    <div class="stat-card">
+                        <div class="stat-icon">⬇️</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="bytes-received">-</span>
+                            <span class="stat-label">Data Received</span>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⏱️</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="uptime">-</span>
-                        <span class="stat-label">Uptime</span>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="uptime">-</span>
+                            <span class="stat-label">Uptime</span>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- Active Connections -->
-            <section class="panel">
-                <h2>Active Connections</h2>
-                <div class="table-container">
-                    <table class="data-table" id="active-table">
-                        <thead>
-                            <tr>
-                                <th>Protocol</th>
-                                <th>Client</th>
-                                <th>Target</th>
-                                <th>Duration</th>
-                                <th>Sent</th>
-                                <th>Received</th>
-                            </tr>
-                        </thead>
-                        <tbody id="active-tbody">
-                            <tr class="empty-row">
-                                <td colspan="6">No active connections</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                <!-- Active Connections -->
+                <section class="panel">
+                    <h2>Active Connections</h2>
+                    <div class="table-container">
+                        <table class="data-table" id="active-table">
+                            <thead>
+                                <tr>
+                                    <th>Protocol</th>
+                                    <th>Client</th>
+                                    <th>Target</th>
+                                    <th>Duration</th>
+                                    <th>Sent</th>
+                                    <th>Received</th>
+                                </tr>
+                            </thead>
+                            <tbody id="active-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="6">No active connections</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-            <!-- Connection History -->
-            <section class="panel">
-                <h2>Connection History</h2>
-                <div class="table-container">
-                    <table class="data-table" id="history-table">
-                        <thead>
-                            <tr>
-                                <th>Protocol</th>
-                                <th>Client</th>
-                                <th>Target</th>
-                                <th>Duration</th>
-                                <th>Sent</th>
-                                <th>Received</th>
-                                <th>Closed At</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-tbody">
-                            <tr class="empty-row">
-                                <td colspan="7">No connection history</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                <!-- Connection History -->
+                <section class="panel">
+                    <h2>Connection History</h2>
+                    <div class="table-container">
+                        <table class="data-table" id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Protocol</th>
+                                    <th>Client</th>
+                                    <th>Target</th>
+                                    <th>Duration</th>
+                                    <th>Sent</th>
+                                    <th>Received</th>
+                                    <th>Closed At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="7">No connection history</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
 
-            <!-- Server Info -->
-            <section class="panel info-panel">
-                <h2>Server Configuration</h2>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">SOCKS5 Proxy</span>
-                        <code id="socks-addr">:1080</code>
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <!-- IP Access Control -->
+                <section class="panel">
+                    <h2>🛡️ IP Access Control</h2>
+                    
+                    <div class="settings-section">
+                        <h3>IP Blacklist</h3>
+                        <p class="settings-desc">Block connections from these IP addresses</p>
+                        <div class="input-group">
+                            <input type="text" id="blacklist-ip-input" placeholder="Enter IP address (e.g., 192.168.1.100)">
+                            <button class="btn btn-danger" id="add-blacklist-btn">Add to Blacklist</button>
+                        </div>
+                        <div class="tag-list" id="ip-blacklist"></div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">HTTP Proxy</span>
-                        <code id="http-addr">:8080</code>
+
+                    <div class="settings-section">
+                        <h3>IP Whitelist</h3>
+                        <p class="settings-desc">Only allow connections from these IPs (leave empty to allow all)</p>
+                        <div class="input-group">
+                            <input type="text" id="whitelist-ip-input" placeholder="Enter IP address (e.g., 10.0.0.0/8)">
+                            <button class="btn btn-primary" id="add-whitelist-btn">Add to Whitelist</button>
+                        </div>
+                        <div class="tag-list" id="ip-whitelist"></div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">Dashboard API</span>
-                        <code id="api-addr">:3000</code>
+                </section>
+
+                <!-- Domain/Path Access Control -->
+                <section class="panel">
+                    <h2>🌐 Domain Access Rules</h2>
+                    <p class="settings-desc">
+                        Control which domains can be accessed through the proxy.
+                        <strong>Mode: <span id="mode-display">Blacklist</span></strong> - 
+                        <span id="mode-desc">All domains allowed except blocked ones</span>
+                    </p>
+
+                    <div class="settings-section">
+                        <h3>Add New Rule</h3>
+                        <div class="rule-form">
+                            <input type="text" id="rule-name" placeholder="Rule name (optional)">
+                            <input type="text" id="rule-domain" placeholder="Domain (e.g., *.example.com)">
+                            <input type="text" id="rule-path" placeholder="Path prefix (optional, e.g., /api)">
+                            <select id="rule-action">
+                                <option value="deny">Deny</option>
+                                <option value="allow">Allow</option>
+                            </select>
+                            <button class="btn btn-primary" id="add-rule-btn">Add Rule</button>
+                        </div>
                     </div>
-                </div>
-            </section>
+
+                    <div class="settings-section">
+                        <h3>Active Rules</h3>
+                        <table class="data-table" id="rules-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Domain</th>
+                                    <th>Path</th>
+                                    <th>Action</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rules-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="5">No rules configured</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Server Info -->
+                <section class="panel info-panel">
+                    <h2>ℹ️ Server Information</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">SOCKS5 Proxy</span>
+                            <code id="socks-addr">:1080</code>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">HTTP Proxy</span>
+                            <code id="http-addr">:8080</code>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Dashboard API</span>
+                            <code id="api-addr">:3000</code>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
 
         <footer class="footer">
             <p>Net-Relay v<span id="version">0.1.0</span> | 
-               <a href="https://github.com/yourusername/net-relay" target="_blank">GitHub</a>
+               <a href="https://github.com/Annihilater/net-relay" target="_blank">GitHub</a>
             </p>
         </footer>
     </div>
