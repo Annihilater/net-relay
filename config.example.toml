@@ -1,0 +1,50 @@
+# Net-Relay Configuration Example
+# Copy this file to config.toml and modify as needed
+
+[server]
+# Bind address for all services
+host = "0.0.0.0"
+
+# SOCKS5 proxy port
+socks_port = 1080
+
+# HTTP proxy port (CONNECT method)
+http_port = 8080
+
+# Web dashboard and API port
+api_port = 3000
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log to file (optional)
+# file = "/var/log/net-relay/proxy.log"
+
+[security]
+# Enable authentication (recommended for production)
+auth_enabled = false
+
+# Username and password for proxy authentication
+# username = "admin"
+# password = "your-secure-password"
+
+# Allowed client IPs (empty means allow all)
+# allowed_ips = ["192.168.1.0/24", "10.0.0.0/8"]
+
+[limits]
+# Maximum concurrent connections
+max_connections = 1000
+
+# Connection timeout in seconds
+timeout = 300
+
+# Max idle time before closing connection
+idle_timeout = 60
+
+[stats]
+# Enable statistics collection
+enabled = true
+
+# Statistics retention period in hours
+retention_hours = 24

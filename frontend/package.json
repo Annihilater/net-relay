@@ -1,0 +1,13 @@
+{
+  "name": "net-relay-frontend",
+  "version": "0.1.0",
+  "description": "Web dashboard for net-relay proxy",
+  "scripts": {
+    "dev": "npx live-server --port=8000 --cors",
+    "build": "echo 'Static files, no build needed'"
+  },
+  "keywords": ["proxy", "dashboard", "monitoring"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {}
+}

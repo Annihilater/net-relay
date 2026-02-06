@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Net-Relay Dashboard</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <h1>🌐 Net-Relay</h1>
+                <span class="status" id="status">Connecting...</span>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Stats Cards -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">🔌</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="active-connections">-</span>
+                        <span class="stat-label">Active Connections</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="total-connections">-</span>
+                        <span class="stat-label">Total Connections</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⬆️</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="bytes-sent">-</span>
+                        <span class="stat-label">Data Sent</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⬇️</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="bytes-received">-</span>
+                        <span class="stat-label">Data Received</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="uptime">-</span>
+                        <span class="stat-label">Uptime</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Active Connections -->
+            <section class="panel">
+                <h2>Active Connections</h2>
+                <div class="table-container">
+                    <table class="data-table" id="active-table">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Client</th>
+                                <th>Target</th>
+                                <th>Duration</th>
+                                <th>Sent</th>
+                                <th>Received</th>
+                            </tr>
+                        </thead>
+                        <tbody id="active-tbody">
+                            <tr class="empty-row">
+                                <td colspan="6">No active connections</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Connection History -->
+            <section class="panel">
+                <h2>Connection History</h2>
+                <div class="table-container">
+                    <table class="data-table" id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Client</th>
+                                <th>Target</th>
+                                <th>Duration</th>
+                                <th>Sent</th>
+                                <th>Received</th>
+                                <th>Closed At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <tr class="empty-row">
+                                <td colspan="7">No connection history</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Server Info -->
+            <section class="panel info-panel">
+                <h2>Server Configuration</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">SOCKS5 Proxy</span>
+                        <code id="socks-addr">:1080</code>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">HTTP Proxy</span>
+                        <code id="http-addr">:8080</code>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Dashboard API</span>
+                        <code id="api-addr">:3000</code>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Net-Relay v<span id="version">0.1.0</span> | 
+               <a href="https://github.com/yourusername/net-relay" target="_blank">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="src/main.js"></script>
+</body>
+</html>
