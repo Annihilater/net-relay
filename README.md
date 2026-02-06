@@ -41,7 +41,7 @@ cd net-relay
 cargo build --release
 
 # Run the proxy server
-./target/release/net-relay-server
+./target/release/net-relay
 ```
 
 ### Configuration
