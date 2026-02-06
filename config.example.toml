@@ -18,8 +18,9 @@ api_port = 3000
 # Log level: trace, debug, info, warn, error
 level = "info"
 
-# Log to file (optional)
-# file = "/var/log/net-relay/proxy.log"
+# Log to file (optional, logs will also go to console)
+# Supports daily rotation when enabled
+# file = "logs/net-relay.log"
 
 [dashboard]
 # Enable authentication for the web dashboard

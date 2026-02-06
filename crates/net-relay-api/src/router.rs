@@ -1,9 +1,13 @@
 //! API router configuration.
 
+use axum::body::Body;
+use axum::http::{header, HeaderValue, Request, StatusCode};
 use axum::middleware;
+use axum::response::Response;
 use axum::routing::{delete, get, post, put};
 use axum::Router;
 use net_relay_core::{ConfigManager, Stats};
+use rust_embed::Embed;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -12,6 +16,47 @@ use tower_http::trace::TraceLayer;
 
 use crate::auth::{session_auth_middleware, SessionStore};
 use crate::handlers::{self, AppState};
+
+/// Embedded frontend assets - compiled into the binary
+#[derive(Embed)]
+#[folder = "../../frontend/"]
+struct FrontendAssets;
+
+/// Handler for serving embedded static files
+async fn serve_embedded(req: Request<Body>) -> Response {
+    let path = req.uri().path().trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+
+    match FrontendAssets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_str(mime.as_ref()).unwrap(),
+                )
+                .body(Body::from(content.data.into_owned()))
+                .unwrap()
+        }
+        None => {
+            // For SPA: return index.html for unknown paths (client-side routing)
+            if !path.contains('.') {
+                if let Some(index) = FrontendAssets::get("index.html") {
+                    return Response::builder()
+                        .status(StatusCode::OK)
+                        .header(header::CONTENT_TYPE, HeaderValue::from_static("text/html"))
+                        .body(Body::from(index.data.into_owned()))
+                        .unwrap();
+                }
+            }
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from("Not Found"))
+                .unwrap()
+        }
+    }
+}
 
 /// Create the API router.
 pub fn create_router(
@@ -94,9 +139,13 @@ pub fn create_router(
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
-    // Serve static files if directory is provided
+    // Serve static files: prefer external directory if exists, otherwise use embedded
     if let Some(dir) = static_dir {
+        tracing::info!("Serving static files from external directory: {:?}", dir);
         app = app.fallback_service(ServeDir::new(dir));
+    } else {
+        tracing::info!("Serving embedded static files (frontend built into binary)");
+        app = app.fallback(serve_embedded);
     }
 
     app

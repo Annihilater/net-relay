@@ -29,6 +29,7 @@ toml = "0.8"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 
 # Error handling
 thiserror = "2.0"
@@ -48,6 +49,10 @@ futures = "0.3"
 
 # Base64 encoding
 base64 = "0.22"
+
+# Embed static files
+rust-embed = "8"
+mime_guess = "2"
 
 [profile.release]
 lto = true

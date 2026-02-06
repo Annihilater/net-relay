@@ -5,11 +5,13 @@
 use anyhow::{Context, Result};
 use net_relay_api::create_router;
 use net_relay_core::proxy::{HttpProxy, Socks5Proxy};
-use net_relay_core::{Config, ConfigManager, Stats};
+use net_relay_core::{Config, ConfigManager, LoggingConfig, Stats};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{error, info};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -17,8 +19,8 @@ async fn main() -> Result<()> {
     // Load configuration
     let (config, config_path) = load_config()?;
 
-    // Initialize logging
-    init_logging(&config.logging.level);
+    // Initialize logging (must be before any log calls)
+    let _guard = init_logging(&config.logging);
 
     info!(
         "Starting net-relay proxy server v{}",
@@ -128,16 +130,67 @@ fn load_config() -> Result<(Config, Option<String>)> {
     Ok((Config::default(), None))
 }
 
-/// Initialize logging with the specified level.
-fn init_logging(level: &str) {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level));
+/// Initialize logging with the specified config.
+/// Returns a guard that must be kept alive for the duration of the program
+/// when using file logging (to ensure logs are flushed).
+fn init_logging(
+    logging_config: &LoggingConfig,
+) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&logging_config.level));
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(true)
         .with_thread_ids(false)
-        .with_file(false)
-        .init();
+        .with_file(false);
+
+    // If log file is configured, set up dual output (console + file)
+    if let Some(ref log_file) = logging_config.file {
+        // Parse the file path to get directory and filename
+        let log_path = PathBuf::from(log_file);
+        let log_dir = log_path.parent().unwrap_or(std::path::Path::new("."));
+        let log_filename = log_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("net-relay.log");
+
+        // Create log directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(log_dir) {
+            eprintln!(
+                "Warning: Failed to create log directory {:?}: {}",
+                log_dir, e
+            );
+        }
+
+        // Create rolling file appender (daily rotation)
+        let file_appender = tracing_appender::rolling::daily(log_dir, log_filename);
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+        // File layer (no ANSI colors)
+        let file_layer = tracing_subscriber::fmt::layer()
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_file(false)
+            .with_ansi(false)
+            .with_writer(non_blocking);
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt_layer)
+            .with(file_layer)
+            .init();
+
+        eprintln!("Logging to console and file: {}", log_file);
+        Some(guard)
+    } else {
+        // Console only
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(fmt_layer)
+            .init();
+
+        None
+    }
 }
 
 /// Find the static files directory for the frontend.
