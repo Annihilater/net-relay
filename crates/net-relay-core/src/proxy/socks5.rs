@@ -100,7 +100,7 @@ async fn handle_client(
     stream.read_exact(&mut methods).await?;
 
     // Handle authentication
-    if auth.is_some() {
+    if let Some((username, password)) = &auth {
         if !methods.contains(&AUTH_PASSWORD) {
             stream
                 .write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE])
@@ -110,7 +110,6 @@ async fn handle_client(
         stream.write_all(&[SOCKS_VERSION, AUTH_PASSWORD]).await?;
 
         // Read username/password auth
-        let (username, password) = auth.as_ref().unwrap();
         if !authenticate(&mut stream, username, password).await? {
             return Err(Error::AuthenticationFailed);
         }

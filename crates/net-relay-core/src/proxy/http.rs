@@ -72,7 +72,7 @@ async fn handle_client(
     reader.read_line(&mut request_line).await?;
 
     // Parse request line: CONNECT host:port HTTP/1.1
-    let parts: Vec<&str> = request_line.trim().split_whitespace().collect();
+    let parts: Vec<&str> = request_line.split_whitespace().collect();
 
     if parts.len() < 3 {
         return Err(Error::InvalidHttpProtocol("Invalid request line".into()));

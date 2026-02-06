@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Main configuration structure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     /// Server configuration.
     #[serde(default)]
@@ -24,18 +24,6 @@ pub struct Config {
     /// Statistics configuration.
     #[serde(default)]
     pub stats: StatsConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            security: SecurityConfig::default(),
-            limits: LimitsConfig::default(),
-            stats: StatsConfig::default(),
-        }
-    }
 }
 
 /// Server binding configuration.
@@ -110,7 +98,7 @@ fn default_log_level() -> String {
 }
 
 /// Security configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {
     /// Enable authentication.
     #[serde(default)]
@@ -125,17 +113,6 @@ pub struct SecurityConfig {
     /// Allowed client IPs (CIDR notation).
     #[serde(default)]
     pub allowed_ips: Vec<String>,
-}
-
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            auth_enabled: false,
-            username: None,
-            password: None,
-            allowed_ips: Vec::new(),
-        }
-    }
 }
 
 /// Connection limits configuration.
