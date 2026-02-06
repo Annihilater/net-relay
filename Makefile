@@ -34,11 +34,29 @@ fmt:
 # 检查代码
 check:
 	cargo check
-	cargo clippy --workspace
+	cargo clippy -- -D warnings
 
 # 运行测试
 test:
 	cargo test --workspace
+
+# 预推送检查 (与 CI 一致)
+pre-push:
+	@echo "🔍 Running pre-push checks..."
+	cargo fmt --check
+	cargo clippy -- -D warnings
+	cargo build --release
+	cargo test
+	@echo "✓ All checks passed! Safe to push."
+
+# 安装 git pre-push hook
+install-hooks:
+	@echo "Installing git hooks..."
+	@mkdir -p .git/hooks
+	@echo '#!/bin/bash' > .git/hooks/pre-push
+	@echo 'make pre-push' >> .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Pre-push hook installed"
 
 # 部署到远程服务器
 # 使用: make deploy REMOTE=user@host
