@@ -226,10 +226,7 @@ fn parse_host_port(target: &str) -> Result<(String, u16)> {
 
 /// Extract and verify proxy authentication header using multi-user config.
 /// Returns the authenticated username on success.
-async fn extract_and_verify_auth(
-    header: &str,
-    config_manager: &ConfigManager,
-) -> Option<String> {
+async fn extract_and_verify_auth(header: &str, config_manager: &ConfigManager) -> Option<String> {
     if header.is_empty() {
         return None;
     }

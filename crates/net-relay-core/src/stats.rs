@@ -115,10 +115,12 @@ impl Stats {
         // Update per-user stats
         if let Some(ref username) = info.username {
             let mut user_stats = self.user_stats.write().await;
-            let stats = user_stats.entry(username.clone()).or_insert_with(|| UserStats {
-                username: username.clone(),
-                ..Default::default()
-            });
+            let stats = user_stats
+                .entry(username.clone())
+                .or_insert_with(|| UserStats {
+                    username: username.clone(),
+                    ..Default::default()
+                });
             stats.total_connections += 1;
             stats.active_connections += 1;
             stats.last_activity = Some(Utc::now());

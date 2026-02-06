@@ -3,7 +3,9 @@
 use axum::extract::State;
 use axum::Json;
 use net_relay_core::stats::{AggregatedStats, ConnectionStats, Stats, UserStats};
-use net_relay_core::{AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo, User};
+use net_relay_core::{
+    AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo, User,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -380,7 +382,11 @@ pub async fn update_user(
 ) -> Json<ApiResponse<SecurityResponse>> {
     let mut security = state.config_manager.get_security().await;
 
-    if let Some(existing) = security.users.iter_mut().find(|u| u.username == req.username) {
+    if let Some(existing) = security
+        .users
+        .iter_mut()
+        .find(|u| u.username == req.username)
+    {
         if let Some(pwd) = req.password {
             existing.password = pwd;
         }
