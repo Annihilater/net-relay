@@ -1,9 +1,25 @@
 # Net-Relay
 
+[![CI](https://github.com/yourusername/net-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/net-relay/actions/workflows/ci.yml)
+[![Release](https://github.com/yourusername/net-relay/actions/workflows/release.yml/badge.svg)](https://github.com/yourusername/net-relay/actions/workflows/release.yml)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A network relay proxy service that allows routing internal network traffic through authorized devices. Perfect for scenarios where your personal device cannot access the corporate intranet directly.
+
+## 📦 Download
+
+Pre-built binaries are available for multiple platforms:
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| Linux | x86_64 (glibc) | [net-relay-x86_64-unknown-linux-gnu.tar.gz](https://github.com/yourusername/net-relay/releases/latest) |
+| Linux | x86_64 (musl, static) | [net-relay-x86_64-unknown-linux-musl.tar.gz](https://github.com/yourusername/net-relay/releases/latest) |
+| Linux | ARM64 | [net-relay-aarch64-unknown-linux-gnu.tar.gz](https://github.com/yourusername/net-relay/releases/latest) |
+| macOS | Intel | [net-relay-x86_64-apple-darwin.tar.gz](https://github.com/yourusername/net-relay/releases/latest) |
+| macOS | Apple Silicon | [net-relay-aarch64-apple-darwin.tar.gz](https://github.com/yourusername/net-relay/releases/latest) |
+| Windows | x86_64 | [net-relay-x86_64-pc-windows-msvc.zip](https://github.com/yourusername/net-relay/releases/latest) |
+| Windows | ARM64 | [net-relay-aarch64-pc-windows-msvc.zip](https://github.com/yourusername/net-relay/releases/latest) |
 
 ## 🎯 Use Case
 
