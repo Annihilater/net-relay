@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
 use crate::config::ConfigManager;
-use crate::connection::{Connection, Protocol};
+use crate::connection::Protocol;
 use crate::error::{Error, Result};
 use crate::proxy::relay::relay_tcp;
 use crate::stats::Stats;
@@ -35,9 +35,6 @@ pub struct Socks5Proxy {
     /// Bind address.
     bind_addr: SocketAddr,
 
-    /// Authentication credentials.
-    auth: Option<(String, String)>,
-
     /// Statistics collector.
     stats: Arc<Stats>,
 
@@ -49,13 +46,12 @@ impl Socks5Proxy {
     /// Create a new SOCKS5 proxy.
     pub fn new(
         bind_addr: SocketAddr,
-        auth: Option<(String, String)>,
+        _auth: Option<(String, String)>, // Deprecated, uses config_manager now
         stats: Arc<Stats>,
         config_manager: ConfigManager,
     ) -> Self {
         Self {
             bind_addr,
-            auth,
             stats,
             config_manager,
         }
@@ -69,13 +65,12 @@ impl Socks5Proxy {
         loop {
             match listener.accept().await {
                 Ok((stream, client_addr)) => {
-                    let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
                     let config_manager = self.config_manager.clone();
 
                     tokio::spawn(async move {
                         if let Err(e) =
-                            handle_client(stream, client_addr, auth, stats, config_manager).await
+                            handle_client(stream, client_addr, stats, config_manager).await
                         {
                             debug!("Connection from {} error: {}", client_addr, e);
                         }
@@ -93,7 +88,6 @@ impl Socks5Proxy {
 async fn handle_client(
     mut stream: TcpStream,
     client_addr: SocketAddr,
-    auth: Option<(String, String)>,
     stats: Arc<Stats>,
     config_manager: ConfigManager,
 ) -> Result<()> {
@@ -121,8 +115,11 @@ async fn handle_client(
     let mut methods = vec![0u8; nmethods];
     stream.read_exact(&mut methods).await?;
 
-    // Handle authentication
-    if let Some((username, password)) = &auth {
+    // Handle authentication based on config
+    let auth_enabled = config_manager.is_auth_enabled().await;
+    let authenticated_user: Option<String>;
+
+    if auth_enabled {
         if !methods.contains(&AUTH_PASSWORD) {
             stream
                 .write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE])
@@ -131,11 +128,13 @@ async fn handle_client(
         }
         stream.write_all(&[SOCKS_VERSION, AUTH_PASSWORD]).await?;
 
-        // Read username/password auth
-        if !authenticate(&mut stream, username, password).await? {
+        // Read and verify username/password auth
+        authenticated_user = authenticate_user(&mut stream, &config_manager).await?;
+        if authenticated_user.is_none() {
             return Err(Error::AuthenticationFailed);
         }
     } else {
+        authenticated_user = None;
         if !methods.contains(&AUTH_NONE) {
             stream
                 .write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE])
@@ -192,15 +191,16 @@ async fn handle_client(
     // Send success reply
     send_reply(&mut stream, REP_SUCCESS).await?;
 
-    // Create connection for tracking
-    let conn = Connection::new(
+    // Create connection for tracking with user info
+    let conn_info = crate::connection::ConnectionInfo::with_user(
         Protocol::Socks5,
         client_addr.to_string(),
         target_addr.clone(),
         target_port,
+        authenticated_user.clone(),
     );
-    let conn_id = conn.info.id;
-    stats.add_connection(conn.info).await;
+    let conn_id = conn_info.id;
+    stats.add_connection(conn_info).await;
 
     // Relay traffic
     let (bytes_sent, bytes_received) = relay_tcp(stream, target_stream).await;
@@ -210,49 +210,54 @@ async fn handle_client(
         .close_connection(conn_id, bytes_sent, bytes_received)
         .await;
 
+    let user_info = authenticated_user
+        .map(|u| format!(" (user: {})", u))
+        .unwrap_or_default();
     info!(
-        "SOCKS5 connection closed: {} -> {}:{} (sent: {}, recv: {})",
-        client_addr, target_addr, target_port, bytes_sent, bytes_received
+        "SOCKS5 connection closed: {} -> {}:{}{} (sent: {}, recv: {})",
+        client_addr, target_addr, target_port, user_info, bytes_sent, bytes_received
     );
 
     Ok(())
 }
 
-/// Authenticate using username/password.
-async fn authenticate(
+/// Authenticate using username/password with multi-user support.
+/// Returns the authenticated username on success, None on failure.
+async fn authenticate_user(
     stream: &mut TcpStream,
-    expected_user: &str,
-    expected_pass: &str,
-) -> Result<bool> {
+    config_manager: &ConfigManager,
+) -> Result<Option<String>> {
     let mut buf = [0u8; 1];
     stream.read_exact(&mut buf).await?;
 
     // Auth version (should be 0x01)
     if buf[0] != 0x01 {
-        return Ok(false);
+        stream.write_all(&[0x01, 0x01]).await?;
+        return Ok(None);
     }
 
     // Read username
     stream.read_exact(&mut buf).await?;
     let ulen = buf[0] as usize;
-    let mut username = vec![0u8; ulen];
-    stream.read_exact(&mut username).await?;
+    let mut username_bytes = vec![0u8; ulen];
+    stream.read_exact(&mut username_bytes).await?;
 
     // Read password
     stream.read_exact(&mut buf).await?;
     let plen = buf[0] as usize;
-    let mut password = vec![0u8; plen];
-    stream.read_exact(&mut password).await?;
+    let mut password_bytes = vec![0u8; plen];
+    stream.read_exact(&mut password_bytes).await?;
 
-    let username = String::from_utf8_lossy(&username);
-    let password = String::from_utf8_lossy(&password);
+    let username = String::from_utf8_lossy(&username_bytes);
+    let password = String::from_utf8_lossy(&password_bytes);
 
-    if username == expected_user && password == expected_pass {
+    // Authenticate using config_manager (supports multi-user)
+    if let Some(authenticated_user) = config_manager.authenticate(&username, &password).await {
         stream.write_all(&[0x01, 0x00]).await?;
-        Ok(true)
+        Ok(Some(authenticated_user))
     } else {
         stream.write_all(&[0x01, 0x01]).await?;
-        Ok(false)
+        Ok(None)
     }
 }
 

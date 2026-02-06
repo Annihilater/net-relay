@@ -60,6 +60,10 @@ pub struct ConnectionInfo {
 
     /// Bytes received from target.
     pub bytes_received: u64,
+
+    /// Authenticated username (if any).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
 }
 
 impl ConnectionInfo {
@@ -81,7 +85,36 @@ impl ConnectionInfo {
             closed_at: None,
             bytes_sent: 0,
             bytes_received: 0,
+            username: None,
         }
+    }
+
+    /// Create a new connection info with username.
+    pub fn with_user(
+        protocol: Protocol,
+        client_addr: String,
+        target_addr: String,
+        target_port: u16,
+        username: Option<String>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            protocol,
+            client_addr,
+            target_addr,
+            target_port,
+            state: ConnectionState::Connecting,
+            connected_at: Utc::now(),
+            closed_at: None,
+            bytes_sent: 0,
+            bytes_received: 0,
+            username,
+        }
+    }
+
+    /// Set the authenticated username.
+    pub fn set_username(&mut self, username: impl Into<String>) {
+        self.username = Some(username.into());
     }
 
     /// Mark the connection as active.

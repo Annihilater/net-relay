@@ -15,7 +15,13 @@
                     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
                     <button class="tab-btn" data-tab="settings">Settings</button>
                 </nav>
-                <span class="status" id="status">Connecting...</span>
+                <div class="header-status">
+                    <span class="auth-badge" id="auth-badge" title="Authentication Status">
+                        <span class="auth-icon">🔓</span>
+                        <span class="auth-text">Auth Off</span>
+                    </span>
+                    <span class="status" id="status">Connecting...</span>
+                </div>
             </div>
         </header>
 
@@ -71,6 +77,7 @@
                                     <th>Protocol</th>
                                     <th>Client</th>
                                     <th>Target</th>
+                                    <th>User</th>
                                     <th>Duration</th>
                                     <th>Sent</th>
                                     <th>Received</th>
@@ -78,10 +85,18 @@
                             </thead>
                             <tbody id="active-tbody">
                                 <tr class="empty-row">
-                                    <td colspan="6">No active connections</td>
+                                    <td colspan="7">No active connections</td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </section>
+
+                <!-- Per-User Stats -->
+                <section class="panel" id="user-stats-panel" style="display: none;">
+                    <h2>👥 Per-User Traffic</h2>
+                    <div class="user-stats-grid" id="user-stats-grid">
+                        <!-- User stat cards will be added dynamically -->
                     </div>
                 </section>
 
@@ -95,6 +110,7 @@
                                     <th>Protocol</th>
                                     <th>Client</th>
                                     <th>Target</th>
+                                    <th>User</th>
                                     <th>Duration</th>
                                     <th>Sent</th>
                                     <th>Received</th>
@@ -103,7 +119,7 @@
                             </thead>
                             <tbody id="history-tbody">
                                 <tr class="empty-row">
-                                    <td colspan="7">No connection history</td>
+                                    <td colspan="8">No connection history</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -115,67 +131,208 @@
             <div id="settings-tab" class="tab-content">
                 <!-- IP Access Control -->
                 <section class="panel">
-                    <h2>🛡️ IP Access Control</h2>
-                    
-                    <div class="settings-section">
-                        <h3>IP Blacklist</h3>
-                        <p class="settings-desc">Block connections from these IP addresses</p>
-                        <div class="input-group">
-                            <input type="text" id="blacklist-ip-input" placeholder="Enter IP address (e.g., 192.168.1.100)">
-                            <button class="btn btn-danger" id="add-blacklist-btn">Add to Blacklist</button>
-                        </div>
-                        <div class="tag-list" id="ip-blacklist"></div>
+                    <div class="panel-header">
+                        <h2>🛡️ IP Access Control</h2>
+                        <span class="panel-badge">Client Filtering</span>
                     </div>
-
-                    <div class="settings-section">
-                        <h3>IP Whitelist</h3>
-                        <p class="settings-desc">Only allow connections from these IPs (leave empty to allow all)</p>
-                        <div class="input-group">
-                            <input type="text" id="whitelist-ip-input" placeholder="Enter IP address (e.g., 10.0.0.0/8)">
-                            <button class="btn btn-primary" id="add-whitelist-btn">Add to Whitelist</button>
+                    
+                    <div class="ip-control-grid">
+                        <!-- Blacklist Card -->
+                        <div class="ip-card ip-card-danger">
+                            <div class="ip-card-header">
+                                <div class="ip-card-icon">🚫</div>
+                                <div class="ip-card-title">
+                                    <h3>IP Blacklist</h3>
+                                    <p>Block connections from specific IPs</p>
+                                </div>
+                            </div>
+                            <div class="ip-card-body">
+                                <div class="ip-input-row">
+                                    <input type="text" id="blacklist-ip-input" placeholder="192.168.1.100 or 10.0.0.0/8">
+                                    <button class="btn btn-icon btn-danger" id="add-blacklist-btn" title="Add to blacklist">
+                                        <span>+</span>
+                                    </button>
+                                </div>
+                                <div class="tag-list" id="ip-blacklist">
+                                    <div class="empty-state">
+                                        <span class="empty-icon">✓</span>
+                                        <span>No blocked IPs</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="tag-list" id="ip-whitelist"></div>
+
+                        <!-- Whitelist Card -->
+                        <div class="ip-card ip-card-success">
+                            <div class="ip-card-header">
+                                <div class="ip-card-icon">✅</div>
+                                <div class="ip-card-title">
+                                    <h3>IP Whitelist</h3>
+                                    <p>Only allow these IPs (if set)</p>
+                                </div>
+                            </div>
+                            <div class="ip-card-body">
+                                <div class="ip-input-row">
+                                    <input type="text" id="whitelist-ip-input" placeholder="192.168.1.0/24 or 10.0.0.1">
+                                    <button class="btn btn-icon btn-success" id="add-whitelist-btn" title="Add to whitelist">
+                                        <span>+</span>
+                                    </button>
+                                </div>
+                                <div class="tag-list" id="ip-whitelist">
+                                    <div class="empty-state">
+                                        <span class="empty-icon">🌐</span>
+                                        <span>All IPs allowed</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
                 <!-- Domain/Path Access Control -->
                 <section class="panel">
-                    <h2>🌐 Domain Access Rules</h2>
-                    <p class="settings-desc">
-                        Control which domains can be accessed through the proxy.
-                        <strong>Mode: <span id="mode-display">Blacklist</span></strong> - 
-                        <span id="mode-desc">All domains allowed except blocked ones</span>
-                    </p>
+                    <div class="panel-header">
+                        <h2>🌐 Domain Access Rules</h2>
+                        <div class="mode-badge" id="mode-badge">
+                            <span class="mode-indicator"></span>
+                            <span id="mode-display">Blacklist Mode</span>
+                        </div>
+                    </div>
+                    <p class="panel-desc" id="mode-desc">All domains allowed except those blocked by rules below</p>
 
-                    <div class="settings-section">
-                        <h3>Add New Rule</h3>
-                        <div class="rule-form">
-                            <input type="text" id="rule-name" placeholder="Rule name (optional)">
-                            <input type="text" id="rule-domain" placeholder="Domain (e.g., *.example.com)">
-                            <input type="text" id="rule-path" placeholder="Path prefix (optional, e.g., /api)">
-                            <select id="rule-action">
-                                <option value="deny">Deny</option>
-                                <option value="allow">Allow</option>
-                            </select>
-                            <button class="btn btn-primary" id="add-rule-btn">Add Rule</button>
+                    <!-- Add Rule Form -->
+                    <div class="rule-form-card">
+                        <div class="rule-form-header">
+                            <span class="rule-form-icon">➕</span>
+                            <span>Add New Rule</span>
+                        </div>
+                        <div class="rule-form-body">
+                            <div class="rule-form-grid">
+                                <div class="form-field">
+                                    <label for="rule-name">Name</label>
+                                    <input type="text" id="rule-name" placeholder="Block social media">
+                                </div>
+                                <div class="form-field">
+                                    <label for="rule-domain">Domain Pattern <span class="required">*</span></label>
+                                    <input type="text" id="rule-domain" placeholder="*.facebook.com">
+                                </div>
+                                <div class="form-field">
+                                    <label for="rule-path">Path Prefix</label>
+                                    <input type="text" id="rule-path" placeholder="/api/admin">
+                                </div>
+                                <div class="form-field">
+                                    <label for="rule-action">Action</label>
+                                    <select id="rule-action">
+                                        <option value="deny">🚫 Deny</option>
+                                        <option value="allow">✅ Allow</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-block" id="add-rule-btn">
+                                <span>Add Rule</span>
+                            </button>
+                        </div>
+                        <div class="rule-form-hint">
+                            <strong>Tip:</strong> Use <code>*</code> for wildcards. Example: <code>*.example.com</code> matches all subdomains.
                         </div>
                     </div>
 
-                    <div class="settings-section">
-                        <h3>Active Rules</h3>
-                        <table class="data-table" id="rules-table">
+                    <!-- Rules Table -->
+                    <div class="rules-table-container">
+                        <div class="rules-table-header">
+                            <span>📋 Active Rules</span>
+                            <span class="rules-count" id="rules-count">0 rules</span>
+                        </div>
+                        <table class="data-table rules-table" id="rules-table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
                                     <th>Domain</th>
                                     <th>Path</th>
                                     <th>Action</th>
-                                    <th>Actions</th>
+                                    <th width="80">Remove</th>
                                 </tr>
                             </thead>
                             <tbody id="rules-tbody">
                                 <tr class="empty-row">
-                                    <td colspan="5">No rules configured</td>
+                                    <td colspan="5">
+                                        <div class="table-empty-state">
+                                            <span class="empty-icon">📭</span>
+                                            <span>No rules configured</span>
+                                            <span class="empty-hint">Add a rule above to control domain access</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- User Authentication -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>🔐 Authentication</h2>
+                        <div class="auth-toggle">
+                            <label class="switch">
+                                <input type="checkbox" id="auth-enabled-toggle">
+                                <span class="slider"></span>
+                            </label>
+                            <span id="auth-toggle-label">Disabled</span>
+                        </div>
+                    </div>
+                    <p class="panel-desc">Enable authentication to require username/password for proxy access</p>
+
+                    <!-- Add User Form -->
+                    <div class="rule-form-card" id="add-user-form">
+                        <div class="rule-form-header">
+                            <span class="rule-form-icon">👤</span>
+                            <span>Add New User</span>
+                        </div>
+                        <div class="rule-form-body">
+                            <div class="rule-form-grid">
+                                <div class="form-field">
+                                    <label for="user-username">Username <span class="required">*</span></label>
+                                    <input type="text" id="user-username" placeholder="john">
+                                </div>
+                                <div class="form-field">
+                                    <label for="user-password">Password <span class="required">*</span></label>
+                                    <input type="password" id="user-password" placeholder="••••••••">
+                                </div>
+                                <div class="form-field">
+                                    <label for="user-description">Description</label>
+                                    <input type="text" id="user-description" placeholder="Admin user">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-block" id="add-user-btn">
+                                <span>Add User</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Users Table -->
+                    <div class="rules-table-container">
+                        <div class="rules-table-header">
+                            <span>👥 Registered Users</span>
+                            <span class="rules-count" id="users-count">0 users</span>
+                        </div>
+                        <table class="data-table rules-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th width="80">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="4">
+                                        <div class="table-empty-state">
+                                            <span class="empty-icon">👤</span>
+                                            <span>No users configured</span>
+                                            <span class="empty-hint">Add a user above to enable authentication</span>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>

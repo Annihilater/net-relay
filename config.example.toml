@@ -25,9 +25,30 @@ level = "info"
 # Enable authentication (recommended for production)
 auth_enabled = false
 
-# Username and password for proxy authentication
+# Multi-user authentication
+# Define multiple users with individual settings
+# 
+# [[security.users]]
 # username = "admin"
-# password = "your-secure-password"
+# password = "admin-secure-password"
+# enabled = true
+# description = "Administrator account"
+# bandwidth_limit = 0       # 0 = unlimited (bytes per second)
+# connection_limit = 0      # 0 = unlimited
+# 
+# [[security.users]]
+# username = "user1"
+# password = "user1-password"
+# enabled = true
+# description = "Regular user"
+# bandwidth_limit = 10485760  # 10 MB/s
+# connection_limit = 10
+# 
+# [[security.users]]
+# username = "guest"
+# password = "guest-password"
+# enabled = false
+# description = "Disabled guest account"
 
 # Allowed client IPs (empty means allow all)
 # allowed_ips = ["192.168.1.0/24", "10.0.0.0/8"]

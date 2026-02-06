@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
 use crate::config::ConfigManager;
-use crate::connection::{Connection, Protocol};
+use crate::connection::Protocol;
 use crate::error::{Error, Result};
 use crate::proxy::relay::relay_tcp;
 use crate::stats::Stats;
@@ -16,9 +16,6 @@ use crate::stats::Stats;
 pub struct HttpProxy {
     /// Bind address.
     bind_addr: SocketAddr,
-
-    /// Authentication credentials.
-    auth: Option<(String, String)>,
 
     /// Statistics collector.
     stats: Arc<Stats>,
@@ -31,13 +28,12 @@ impl HttpProxy {
     /// Create a new HTTP CONNECT proxy.
     pub fn new(
         bind_addr: SocketAddr,
-        auth: Option<(String, String)>,
+        _auth: Option<(String, String)>, // Deprecated, uses config_manager now
         stats: Arc<Stats>,
         config_manager: ConfigManager,
     ) -> Self {
         Self {
             bind_addr,
-            auth,
             stats,
             config_manager,
         }
@@ -51,13 +47,12 @@ impl HttpProxy {
         loop {
             match listener.accept().await {
                 Ok((stream, client_addr)) => {
-                    let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
                     let config_manager = self.config_manager.clone();
 
                     tokio::spawn(async move {
                         if let Err(e) =
-                            handle_client(stream, client_addr, auth, stats, config_manager).await
+                            handle_client(stream, client_addr, stats, config_manager).await
                         {
                             debug!("Connection from {} error: {}", client_addr, e);
                         }
@@ -75,7 +70,6 @@ impl HttpProxy {
 async fn handle_client(
     stream: TcpStream,
     client_addr: SocketAddr,
-    auth: Option<(String, String)>,
     stats: Arc<Stats>,
     config_manager: ConfigManager,
 ) -> Result<()> {
@@ -117,7 +111,6 @@ async fn handle_client(
     let (target_addr, target_port) = parse_host_port(target)?;
 
     // Read headers
-    let mut has_auth = false;
     let mut auth_header = String::new();
 
     loop {
@@ -129,18 +122,23 @@ async fn handle_client(
         }
 
         if line.to_lowercase().starts_with("proxy-authorization:") {
-            has_auth = true;
             auth_header = line.trim().to_string();
         }
     }
 
-    // Check authentication
-    if let Some((username, password)) = auth.as_ref() {
-        if !has_auth || !verify_auth(&auth_header, username, password) {
+    // Check authentication using config_manager (multi-user support)
+    let auth_enabled = config_manager.is_auth_enabled().await;
+    let authenticated_user: Option<String>;
+
+    if auth_enabled {
+        authenticated_user = extract_and_verify_auth(&auth_header, &config_manager).await;
+        if authenticated_user.is_none() {
             let mut stream = reader.into_inner();
             stream.write_all(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"Proxy\"\r\n\r\n").await?;
             return Err(Error::AuthenticationFailed);
         }
+    } else {
+        authenticated_user = None;
     }
 
     // Check target access control
@@ -176,15 +174,16 @@ async fn handle_client(
         .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         .await?;
 
-    // Create connection for tracking
-    let conn = Connection::new(
+    // Create connection for tracking with user info
+    let conn_info = crate::connection::ConnectionInfo::with_user(
         Protocol::HttpConnect,
         client_addr.to_string(),
         target_addr.clone(),
         target_port,
+        authenticated_user.clone(),
     );
-    let conn_id = conn.info.id;
-    stats.add_connection(conn.info).await;
+    let conn_id = conn_info.id;
+    stats.add_connection(conn_info).await;
 
     // Relay traffic
     let (bytes_sent, bytes_received) = relay_tcp(stream, target_stream).await;
@@ -194,9 +193,12 @@ async fn handle_client(
         .close_connection(conn_id, bytes_sent, bytes_received)
         .await;
 
+    let user_info = authenticated_user
+        .map(|u| format!(" (user: {})", u))
+        .unwrap_or_default();
     info!(
-        "HTTP CONNECT closed: {} -> {}:{} (sent: {}, recv: {})",
-        client_addr, target_addr, target_port, bytes_sent, bytes_received
+        "HTTP CONNECT closed: {} -> {}:{}{} (sent: {}, recv: {})",
+        client_addr, target_addr, target_port, user_info, bytes_sent, bytes_received
     );
 
     Ok(())
@@ -222,28 +224,41 @@ fn parse_host_port(target: &str) -> Result<(String, u16)> {
     Ok((host, port))
 }
 
-/// Verify proxy authentication header.
-fn verify_auth(header: &str, username: &str, password: &str) -> bool {
+/// Extract and verify proxy authentication header using multi-user config.
+/// Returns the authenticated username on success.
+async fn extract_and_verify_auth(
+    header: &str,
+    config_manager: &ConfigManager,
+) -> Option<String> {
+    if header.is_empty() {
+        return None;
+    }
+
     // Parse "Proxy-Authorization: Basic base64..."
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     if parts.len() != 2 {
-        return false;
+        return None;
     }
 
     let auth_parts: Vec<&str> = parts[1].trim().splitn(2, ' ').collect();
     if auth_parts.len() != 2 || auth_parts[0].to_lowercase() != "basic" {
-        return false;
+        return None;
     }
 
     // Decode base64
-    use std::str;
-    let decoded = match base64_decode(auth_parts[1].trim()) {
-        Some(d) => d,
-        None => return false,
-    };
+    let decoded = base64_decode(auth_parts[1].trim())?;
 
-    let expected = format!("{}:{}", username, password);
-    decoded == expected
+    // Parse username:password
+    let cred_parts: Vec<&str> = decoded.splitn(2, ':').collect();
+    if cred_parts.len() != 2 {
+        return None;
+    }
+
+    let username = cred_parts[0];
+    let password = cred_parts[1];
+
+    // Authenticate using config_manager (supports multi-user)
+    config_manager.authenticate(username, password).await
 }
 
 /// Simple base64 decode.

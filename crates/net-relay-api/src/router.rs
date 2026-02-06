@@ -1,6 +1,6 @@
 //! API router configuration.
 
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::Router;
 use net_relay_core::{ConfigManager, Stats};
 use std::path::PathBuf;
@@ -28,6 +28,7 @@ pub fn create_router(
         .route("/stats", get(handlers::get_stats))
         .route("/connections", get(handlers::get_connections))
         .route("/history", get(handlers::get_history))
+        .route("/stats/users", get(handlers::get_user_stats))
         // Configuration
         .route("/config", get(handlers::get_config))
         .route("/config/access-control", get(handlers::get_access_control))
@@ -49,6 +50,12 @@ pub fn create_router(
         // Access rules
         .route("/config/rules", post(handlers::add_rule))
         .route("/config/rules", delete(handlers::remove_rule))
+        // Security & Users
+        .route("/config/security", get(handlers::get_security))
+        .route("/config/security", put(handlers::update_security))
+        .route("/config/users", post(handlers::add_user))
+        .route("/config/users", put(handlers::update_user))
+        .route("/config/users", delete(handlers::remove_user))
         .with_state(state);
 
     let cors = CorsLayer::new()

@@ -10,6 +10,7 @@ class Dashboard {
     constructor() {
         this.elements = {
             status: document.getElementById('status'),
+            authBadge: document.getElementById('auth-badge'),
             activeConnections: document.getElementById('active-connections'),
             totalConnections: document.getElementById('total-connections'),
             bytesSent: document.getElementById('bytes-sent'),
@@ -18,21 +19,26 @@ class Dashboard {
             activeTbody: document.getElementById('active-tbody'),
             historyTbody: document.getElementById('history-tbody'),
             version: document.getElementById('version'),
+            userStatsPanel: document.getElementById('user-stats-panel'),
+            userStatsGrid: document.getElementById('user-stats-grid'),
         };
         
         this.isConnected = false;
         this.accessControl = null;
+        this.securityConfig = null;
         this.init();
     }
 
     async init() {
         this.setupTabs();
         this.setupSettingsHandlers();
+        this.setupUserHandlers();
         
         await this.checkHealth();
         await this.refresh();
         await this.loadHistory();
         await this.loadAccessControl();
+        await this.loadSecurityConfig();
         
         // Start periodic refresh
         setInterval(() => this.refresh(), REFRESH_INTERVAL);
@@ -71,38 +77,85 @@ class Dashboard {
     // ==================== Settings Handlers ====================
 
     setupSettingsHandlers() {
-        // IP Blacklist
-        document.getElementById('add-blacklist-btn')?.addEventListener('click', () => {
-            const input = document.getElementById('blacklist-ip-input');
-            if (input.value.trim()) {
-                this.addIpBlacklist(input.value.trim());
-                input.value = '';
+        // IP Blacklist - button and Enter key
+        const blacklistInput = document.getElementById('blacklist-ip-input');
+        const addBlacklistBtn = document.getElementById('add-blacklist-btn');
+        
+        const handleAddBlacklist = () => {
+            if (blacklistInput.value.trim()) {
+                this.addIpBlacklist(blacklistInput.value.trim());
+                blacklistInput.value = '';
+                blacklistInput.focus();
+            } else {
+                this.shakeElement(blacklistInput);
             }
+        };
+        
+        addBlacklistBtn?.addEventListener('click', handleAddBlacklist);
+        blacklistInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAddBlacklist();
         });
 
-        // IP Whitelist
-        document.getElementById('add-whitelist-btn')?.addEventListener('click', () => {
-            const input = document.getElementById('whitelist-ip-input');
-            if (input.value.trim()) {
-                this.addIpWhitelist(input.value.trim());
-                input.value = '';
+        // IP Whitelist - button and Enter key
+        const whitelistInput = document.getElementById('whitelist-ip-input');
+        const addWhitelistBtn = document.getElementById('add-whitelist-btn');
+        
+        const handleAddWhitelist = () => {
+            if (whitelistInput.value.trim()) {
+                this.addIpWhitelist(whitelistInput.value.trim());
+                whitelistInput.value = '';
+                whitelistInput.focus();
+            } else {
+                this.shakeElement(whitelistInput);
             }
+        };
+        
+        addWhitelistBtn?.addEventListener('click', handleAddWhitelist);
+        whitelistInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAddWhitelist();
         });
 
         // Add Rule
-        document.getElementById('add-rule-btn')?.addEventListener('click', () => {
+        const addRuleBtn = document.getElementById('add-rule-btn');
+        const domainInput = document.getElementById('rule-domain');
+        
+        const handleAddRule = () => {
             const name = document.getElementById('rule-name').value.trim();
-            const domain = document.getElementById('rule-domain').value.trim();
+            const domain = domainInput.value.trim();
             const path = document.getElementById('rule-path').value.trim() || null;
             const action = document.getElementById('rule-action').value;
 
             if (domain) {
                 this.addRule({ name, domain, path, action, enabled: true });
                 document.getElementById('rule-name').value = '';
-                document.getElementById('rule-domain').value = '';
+                domainInput.value = '';
                 document.getElementById('rule-path').value = '';
+                document.getElementById('rule-name').focus();
+            } else {
+                this.shakeElement(domainInput);
+                domainInput.focus();
             }
+        };
+        
+        addRuleBtn?.addEventListener('click', handleAddRule);
+        
+        // Allow Enter on any rule form field
+        ['rule-name', 'rule-domain', 'rule-path'].forEach(id => {
+            document.getElementById(id)?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleAddRule();
+            });
         });
+    }
+
+    // Visual feedback for validation errors
+    shakeElement(element) {
+        element.style.animation = 'none';
+        element.offsetHeight; // Trigger reflow
+        element.style.animation = 'shake 0.3s ease';
+        element.style.borderColor = 'var(--error)';
+        setTimeout(() => {
+            element.style.borderColor = '';
+        }, 1000);
     }
 
     // ==================== Access Control API ====================
@@ -134,11 +187,11 @@ class Dashboard {
         const modeDisplay = document.getElementById('mode-display');
         const modeDesc = document.getElementById('mode-desc');
         if (this.accessControl.allow_by_default) {
-            modeDisplay.textContent = 'Blacklist';
-            modeDesc.textContent = 'All domains allowed except blocked ones';
+            modeDisplay.textContent = 'Blacklist Mode';
+            modeDesc.textContent = 'All domains allowed except those blocked by rules below';
         } else {
-            modeDisplay.textContent = 'Whitelist';
-            modeDesc.textContent = 'All domains blocked except allowed ones';
+            modeDisplay.textContent = 'Whitelist Mode';
+            modeDesc.textContent = 'All domains blocked except those allowed by rules below';
         }
 
         // Render rules
@@ -149,8 +202,15 @@ class Dashboard {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        if (ips.length === 0) {
-            container.innerHTML = '<span class="empty-text">No IPs configured</span>';
+        if (!ips || ips.length === 0) {
+            const emptyIcon = type === 'blacklist' ? '✓' : '🌐';
+            const emptyText = type === 'blacklist' ? 'No blocked IPs' : 'All IPs allowed';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <span class="empty-icon">${emptyIcon}</span>
+                    <span>${emptyText}</span>
+                </div>
+            `;
             return;
         }
 
@@ -165,8 +225,8 @@ class Dashboard {
         container.querySelectorAll('.tag-remove').forEach(btn => {
             btn.addEventListener('click', () => {
                 const ip = btn.dataset.ip;
-                const type = btn.dataset.type;
-                if (type === 'blacklist') {
+                const listType = btn.dataset.type;
+                if (listType === 'blacklist') {
                     this.removeIpBlacklist(ip);
                 } else {
                     this.removeIpWhitelist(ip);
@@ -177,12 +237,28 @@ class Dashboard {
 
     renderRules() {
         const tbody = document.getElementById('rules-tbody');
+        const rulesCount = document.getElementById('rules-count');
         if (!tbody) return;
 
         const rules = this.accessControl.rules || [];
         
+        // Update rules count
+        if (rulesCount) {
+            rulesCount.textContent = `${rules.length} rule${rules.length !== 1 ? 's' : ''}`;
+        }
+        
         if (rules.length === 0) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No rules configured</td></tr>';
+            tbody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="5">
+                        <div class="table-empty-state">
+                            <span class="empty-icon">📭</span>
+                            <span>No rules configured</span>
+                            <span class="empty-hint">Add a rule above to control domain access</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
             return;
         }
 
@@ -308,6 +384,201 @@ class Dashboard {
         }
     }
 
+    // ==================== Security & User Management ====================
+
+    setupUserHandlers() {
+        // Auth toggle
+        const authToggle = document.getElementById('auth-enabled-toggle');
+        authToggle?.addEventListener('change', () => {
+            this.updateAuthEnabled(authToggle.checked);
+        });
+
+        // Add user
+        const addUserBtn = document.getElementById('add-user-btn');
+        const usernameInput = document.getElementById('user-username');
+        const passwordInput = document.getElementById('user-password');
+        
+        const handleAddUser = () => {
+            const username = usernameInput?.value.trim();
+            const password = passwordInput?.value;
+            const description = document.getElementById('user-description')?.value.trim() || null;
+            
+            if (username && password) {
+                this.addUser({ username, password, description });
+                usernameInput.value = '';
+                passwordInput.value = '';
+                document.getElementById('user-description').value = '';
+                usernameInput.focus();
+            } else {
+                if (!username) this.shakeElement(usernameInput);
+                if (!password) this.shakeElement(passwordInput);
+            }
+        };
+        
+        addUserBtn?.addEventListener('click', handleAddUser);
+        
+        // Allow Enter on user form fields
+        ['user-username', 'user-password', 'user-description'].forEach(id => {
+            document.getElementById(id)?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleAddUser();
+            });
+        });
+    }
+
+    async loadSecurityConfig() {
+        try {
+            const response = await fetch(`${API_BASE}/config/security`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.securityConfig = data.data;
+                this.renderSecurityConfig();
+            }
+        } catch (error) {
+            console.error('Failed to load security config:', error);
+        }
+    }
+
+    renderSecurityConfig() {
+        if (!this.securityConfig) return;
+
+        // Update auth badge in header
+        const authBadge = this.elements.authBadge;
+        if (authBadge) {
+            if (this.securityConfig.auth_enabled) {
+                authBadge.classList.remove('auth-off');
+                authBadge.classList.add('auth-on');
+                authBadge.querySelector('.auth-icon').textContent = '🔒';
+                authBadge.querySelector('.auth-text').textContent = 'Auth On';
+            } else {
+                authBadge.classList.remove('auth-on');
+                authBadge.classList.add('auth-off');
+                authBadge.querySelector('.auth-icon').textContent = '🔓';
+                authBadge.querySelector('.auth-text').textContent = 'Auth Off';
+            }
+        }
+
+        // Update auth toggle
+        const authToggle = document.getElementById('auth-enabled-toggle');
+        const authToggleLabel = document.getElementById('auth-toggle-label');
+        if (authToggle) {
+            authToggle.checked = this.securityConfig.auth_enabled;
+        }
+        if (authToggleLabel) {
+            authToggleLabel.textContent = this.securityConfig.auth_enabled ? 'Enabled' : 'Disabled';
+        }
+
+        // Render users table
+        this.renderUsersTable();
+    }
+
+    renderUsersTable() {
+        const tbody = document.getElementById('users-tbody');
+        const usersCount = document.getElementById('users-count');
+        if (!tbody || !this.securityConfig) return;
+
+        const users = this.securityConfig.users || [];
+        
+        // Update count
+        if (usersCount) {
+            usersCount.textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+        }
+        
+        if (users.length === 0) {
+            tbody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="4">
+                        <div class="table-empty-state">
+                            <span class="empty-icon">👤</span>
+                            <span>No users configured</span>
+                            <span class="empty-hint">Add a user above to enable authentication</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = users.map(user => `
+            <tr>
+                <td><strong>${this.escapeHtml(user.username)}</strong></td>
+                <td>${this.escapeHtml(user.description || '-')}</td>
+                <td>
+                    <span class="user-status-badge ${user.enabled ? 'enabled' : 'disabled'}">
+                        ${user.enabled ? 'Active' : 'Disabled'}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-danger remove-user" data-username="${this.escapeHtml(user.username)}">
+                        Remove
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+        // Add remove handlers
+        tbody.querySelectorAll('.remove-user').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.removeUser(btn.dataset.username);
+            });
+        });
+    }
+
+    async updateAuthEnabled(enabled) {
+        try {
+            const response = await fetch(`${API_BASE}/config/security`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auth_enabled: enabled })
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.securityConfig = data.data;
+                this.renderSecurityConfig();
+            }
+        } catch (error) {
+            console.error('Failed to update auth setting:', error);
+        }
+    }
+
+    async addUser(user) {
+        try {
+            const response = await fetch(`${API_BASE}/config/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.securityConfig = data.data;
+                this.renderSecurityConfig();
+            } else if (data.message) {
+                alert(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to add user:', error);
+        }
+    }
+
+    async removeUser(username) {
+        if (!confirm(`Remove user "${username}"?`)) return;
+        
+        try {
+            const response = await fetch(`${API_BASE}/config/users`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.securityConfig = data.data;
+                this.renderSecurityConfig();
+            }
+        } catch (error) {
+            console.error('Failed to remove user:', error);
+        }
+    }
+
     // ==================== Dashboard Stats ====================
 
     async checkHealth() {
@@ -364,13 +635,57 @@ class Dashboard {
         this.elements.bytesSent.textContent = this.formatBytes(stats.total_bytes_sent);
         this.elements.bytesReceived.textContent = this.formatBytes(stats.total_bytes_received);
         this.elements.uptime.textContent = this.formatDuration(stats.uptime_secs);
+
+        // Update per-user stats
+        if (stats.users && stats.users.length > 0) {
+            this.renderUserStats(stats.users);
+        } else {
+            this.elements.userStatsPanel.style.display = 'none';
+        }
+    }
+
+    renderUserStats(users) {
+        const panel = this.elements.userStatsPanel;
+        const grid = this.elements.userStatsGrid;
+        
+        if (!panel || !grid) return;
+        
+        panel.style.display = 'block';
+        
+        grid.innerHTML = users.map(user => `
+            <div class="user-stat-card">
+                <div class="user-stat-header">
+                    <div class="user-stat-name">
+                        <div class="user-stat-avatar">${user.username.charAt(0).toUpperCase()}</div>
+                        <h4>${this.escapeHtml(user.username)}</h4>
+                    </div>
+                    <span class="user-stat-active ${user.active_connections > 0 ? 'has-active' : 'no-active'}">
+                        ${user.active_connections} active
+                    </span>
+                </div>
+                <div class="user-stat-details">
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${user.total_connections}</span>
+                        <span class="user-stat-label">Connections</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(user.total_bytes_sent)}</span>
+                        <span class="user-stat-label">Sent</span>
+                    </div>
+                    <div class="user-stat-item">
+                        <span class="user-stat-value">${this.formatBytes(user.total_bytes_received)}</span>
+                        <span class="user-stat-label">Received</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
     updateActiveConnections(connections) {
         const tbody = this.elements.activeTbody;
         
         if (connections.length === 0) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No active connections</td></tr>';
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No active connections</td></tr>';
             return;
         }
 
@@ -379,6 +694,7 @@ class Dashboard {
                 <td><span class="protocol-badge ${conn.protocol}">${conn.protocol}</span></td>
                 <td>${this.escapeHtml(conn.client_addr)}</td>
                 <td>${this.escapeHtml(conn.target_addr)}:${conn.target_port}</td>
+                <td class="user-cell ${conn.username ? '' : 'anonymous'}">${conn.username ? this.escapeHtml(conn.username) : '-'}</td>
                 <td>${this.formatDuration(this.calculateDuration(conn.connected_at))}</td>
                 <td>${this.formatBytes(conn.bytes_sent)}</td>
                 <td>${this.formatBytes(conn.bytes_received)}</td>
@@ -403,7 +719,7 @@ class Dashboard {
         const tbody = this.elements.historyTbody;
         
         if (history.length === 0) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No connection history</td></tr>';
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No connection history</td></tr>';
             return;
         }
 
@@ -414,6 +730,7 @@ class Dashboard {
                     <td><span class="protocol-badge ${conn.protocol}">${conn.protocol}</span></td>
                     <td>${this.escapeHtml(conn.client_addr)}</td>
                     <td>${this.escapeHtml(conn.target_addr)}:${conn.target_port}</td>
+                    <td class="user-cell ${conn.username ? '' : 'anonymous'}">${conn.username ? this.escapeHtml(conn.username) : '-'}</td>
                     <td>${this.formatDuration(this.calculateConnectionDuration(conn))}</td>
                     <td>${this.formatBytes(conn.bytes_sent)}</td>
                     <td>${this.formatBytes(conn.bytes_received)}</td>

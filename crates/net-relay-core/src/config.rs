@@ -103,6 +103,34 @@ impl ConfigManager {
         let config = self.config.read().await;
         config.access_control.is_target_allowed(host, path)
     }
+
+    /// Check if authentication is required.
+    pub async fn is_auth_enabled(&self) -> bool {
+        let config = self.config.read().await;
+        config.security.auth_enabled
+    }
+
+    /// Authenticate a user. Returns the username if successful.
+    pub async fn authenticate(&self, username: &str, password: &str) -> Option<String> {
+        let config = self.config.read().await;
+        config.security.authenticate(username, password)
+    }
+
+    /// Get security configuration.
+    pub async fn get_security(&self) -> SecurityConfig {
+        let config = self.config.read().await;
+        config.security.clone()
+    }
+
+    /// Update security configuration.
+    pub async fn update_security(&self, security: SecurityConfig) -> anyhow::Result<()> {
+        let mut config = self.config.write().await;
+        config.security = security;
+        if let Some(path) = &self.config_path {
+            config.save_to_file(path)?;
+        }
+        Ok(())
+    }
 }
 
 /// Server binding configuration.
@@ -176,6 +204,50 @@ fn default_log_level() -> String {
     "info".to_string()
 }
 
+/// User account for authentication.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct User {
+    /// Username.
+    pub username: String,
+
+    /// Password (plain text for now, should be hashed in production).
+    pub password: String,
+
+    /// Whether this user is enabled.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// Optional description or display name.
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Bandwidth limit in bytes per second (0 = unlimited).
+    #[serde(default)]
+    pub bandwidth_limit: u64,
+
+    /// Connection limit (0 = unlimited).
+    #[serde(default)]
+    pub connection_limit: u32,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl User {
+    /// Create a new user with username and password.
+    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            username: username.into(),
+            password: password.into(),
+            enabled: true,
+            description: None,
+            bandwidth_limit: 0,
+            connection_limit: 0,
+        }
+    }
+}
+
 /// Security configuration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {
@@ -183,15 +255,72 @@ pub struct SecurityConfig {
     #[serde(default)]
     pub auth_enabled: bool,
 
-    /// Username for authentication.
+    /// Username for authentication (legacy single user, deprecated).
     pub username: Option<String>,
 
-    /// Password for authentication.
+    /// Password for authentication (legacy single user, deprecated).
     pub password: Option<String>,
+
+    /// Multi-user accounts.
+    #[serde(default)]
+    pub users: Vec<User>,
 
     /// Allowed client IPs (CIDR notation).
     #[serde(default)]
     pub allowed_ips: Vec<String>,
+}
+
+impl SecurityConfig {
+    /// Check if a username/password combination is valid.
+    /// Returns the username if authentication succeeds.
+    pub fn authenticate(&self, username: &str, password: &str) -> Option<String> {
+        // First check multi-user list
+        for user in &self.users {
+            if user.enabled && user.username == username && user.password == password {
+                return Some(user.username.clone());
+            }
+        }
+
+        // Fallback to legacy single user
+        if let (Some(u), Some(p)) = (&self.username, &self.password) {
+            if u == username && p == password {
+                return Some(username.to_string());
+            }
+        }
+
+        None
+    }
+
+    /// Get all enabled users.
+    pub fn get_users(&self) -> Vec<&User> {
+        self.users.iter().filter(|u| u.enabled).collect()
+    }
+
+    /// Add a new user.
+    pub fn add_user(&mut self, user: User) -> bool {
+        if self.users.iter().any(|u| u.username == user.username) {
+            return false;
+        }
+        self.users.push(user);
+        true
+    }
+
+    /// Remove a user by username.
+    pub fn remove_user(&mut self, username: &str) -> bool {
+        let len_before = self.users.len();
+        self.users.retain(|u| u.username != username);
+        self.users.len() < len_before
+    }
+
+    /// Update a user.
+    pub fn update_user(&mut self, user: User) -> bool {
+        if let Some(existing) = self.users.iter_mut().find(|u| u.username == user.username) {
+            *existing = user;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Connection limits configuration.
@@ -346,10 +475,6 @@ pub struct AccessRule {
     /// Whether this rule is enabled.
     #[serde(default = "default_true")]
     pub enabled: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 impl AccessRule {

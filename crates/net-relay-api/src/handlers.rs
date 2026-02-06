@@ -2,8 +2,8 @@
 
 use axum::extract::State;
 use axum::Json;
-use net_relay_core::stats::{AggregatedStats, ConnectionStats, Stats};
-use net_relay_core::{AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo};
+use net_relay_core::stats::{AggregatedStats, ConnectionStats, Stats, UserStats};
+use net_relay_core::{AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo, User};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -241,4 +241,194 @@ pub async fn remove_rule(
         .update_access_control(config.access_control.clone())
         .await;
     ApiResponse::ok(config.access_control)
+}
+
+// ==================== Security & User Management API ====================
+
+/// Security configuration response (without exposing passwords).
+#[derive(Debug, Serialize)]
+pub struct SecurityResponse {
+    pub auth_enabled: bool,
+    pub users: Vec<UserInfo>,
+    pub user_count: usize,
+}
+
+/// User info without password.
+#[derive(Debug, Serialize)]
+pub struct UserInfo {
+    pub username: String,
+    pub enabled: bool,
+    pub description: Option<String>,
+    pub bandwidth_limit: u64,
+    pub connection_limit: u32,
+}
+
+impl From<&User> for UserInfo {
+    fn from(user: &User) -> Self {
+        Self {
+            username: user.username.clone(),
+            enabled: user.enabled,
+            description: user.description.clone(),
+            bandwidth_limit: user.bandwidth_limit,
+            connection_limit: user.connection_limit,
+        }
+    }
+}
+
+/// Get security configuration (without passwords).
+pub async fn get_security(State(state): State<AppState>) -> Json<ApiResponse<SecurityResponse>> {
+    let security = state.config_manager.get_security().await;
+    let users: Vec<UserInfo> = security.users.iter().map(UserInfo::from).collect();
+    ApiResponse::ok(SecurityResponse {
+        auth_enabled: security.auth_enabled,
+        user_count: users.len(),
+        users,
+    })
+}
+
+/// Update security settings (enable/disable auth).
+#[derive(Debug, Deserialize)]
+pub struct UpdateSecurityRequest {
+    pub auth_enabled: Option<bool>,
+}
+
+pub async fn update_security(
+    State(state): State<AppState>,
+    Json(req): Json<UpdateSecurityRequest>,
+) -> Json<ApiResponse<SecurityResponse>> {
+    let mut security = state.config_manager.get_security().await;
+
+    if let Some(enabled) = req.auth_enabled {
+        security.auth_enabled = enabled;
+    }
+
+    let _ = state.config_manager.update_security(security.clone()).await;
+
+    let users: Vec<UserInfo> = security.users.iter().map(UserInfo::from).collect();
+    ApiResponse::ok(SecurityResponse {
+        auth_enabled: security.auth_enabled,
+        user_count: users.len(),
+        users,
+    })
+}
+
+/// Add user request.
+#[derive(Debug, Deserialize)]
+pub struct AddUserRequest {
+    pub username: String,
+    pub password: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+}
+
+/// Add a new user.
+pub async fn add_user(
+    State(state): State<AppState>,
+    Json(req): Json<AddUserRequest>,
+) -> Json<ApiResponse<SecurityResponse>> {
+    let mut security = state.config_manager.get_security().await;
+
+    let user = User {
+        username: req.username,
+        password: req.password,
+        enabled: req.enabled.unwrap_or(true),
+        description: req.description,
+        bandwidth_limit: 0,
+        connection_limit: 0,
+    };
+
+    if !security.add_user(user) {
+        return Json(ApiResponse {
+            success: false,
+            data: SecurityResponse {
+                auth_enabled: security.auth_enabled,
+                user_count: security.users.len(),
+                users: security.users.iter().map(UserInfo::from).collect(),
+            },
+            message: Some("User already exists".to_string()),
+        });
+    }
+
+    let _ = state.config_manager.update_security(security.clone()).await;
+
+    let users: Vec<UserInfo> = security.users.iter().map(UserInfo::from).collect();
+    ApiResponse::ok(SecurityResponse {
+        auth_enabled: security.auth_enabled,
+        user_count: users.len(),
+        users,
+    })
+}
+
+/// Update user request.
+#[derive(Debug, Deserialize)]
+pub struct UpdateUserRequest {
+    pub username: String,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Update an existing user.
+pub async fn update_user(
+    State(state): State<AppState>,
+    Json(req): Json<UpdateUserRequest>,
+) -> Json<ApiResponse<SecurityResponse>> {
+    let mut security = state.config_manager.get_security().await;
+
+    if let Some(existing) = security.users.iter_mut().find(|u| u.username == req.username) {
+        if let Some(pwd) = req.password {
+            existing.password = pwd;
+        }
+        if let Some(enabled) = req.enabled {
+            existing.enabled = enabled;
+        }
+        if let Some(desc) = req.description {
+            existing.description = Some(desc);
+        }
+
+        let _ = state.config_manager.update_security(security.clone()).await;
+    }
+
+    let users: Vec<UserInfo> = security.users.iter().map(UserInfo::from).collect();
+    ApiResponse::ok(SecurityResponse {
+        auth_enabled: security.auth_enabled,
+        user_count: users.len(),
+        users,
+    })
+}
+
+/// Remove user request.
+#[derive(Debug, Deserialize)]
+pub struct RemoveUserRequest {
+    pub username: String,
+}
+
+/// Remove a user.
+pub async fn remove_user(
+    State(state): State<AppState>,
+    Json(req): Json<RemoveUserRequest>,
+) -> Json<ApiResponse<SecurityResponse>> {
+    let mut security = state.config_manager.get_security().await;
+
+    security.remove_user(&req.username);
+
+    let _ = state.config_manager.update_security(security.clone()).await;
+
+    let users: Vec<UserInfo> = security.users.iter().map(UserInfo::from).collect();
+    ApiResponse::ok(SecurityResponse {
+        auth_enabled: security.auth_enabled,
+        user_count: users.len(),
+        users,
+    })
+}
+
+/// Get per-user statistics.
+pub async fn get_user_stats(State(state): State<AppState>) -> Json<ApiResponse<Vec<UserStats>>> {
+    let user_stats = state.stats.get_user_stats().await;
+    ApiResponse::ok(user_stats)
 }
