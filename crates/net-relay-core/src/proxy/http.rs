@@ -43,7 +43,7 @@ impl HttpProxy {
                 Ok((stream, client_addr)) => {
                     let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
-                    
+
                     tokio::spawn(async move {
                         if let Err(e) = handle_client(stream, client_addr, auth, stats).await {
                             debug!("Connection from {} error: {}", client_addr, e);
@@ -73,7 +73,7 @@ async fn handle_client(
 
     // Parse request line: CONNECT host:port HTTP/1.1
     let parts: Vec<&str> = request_line.trim().split_whitespace().collect();
-    
+
     if parts.len() < 3 {
         return Err(Error::InvalidHttpProtocol("Invalid request line".into()));
     }
@@ -83,8 +83,13 @@ async fn handle_client(
 
     if method != "CONNECT" {
         let mut stream = reader.into_inner();
-        stream.write_all(b"HTTP/1.1 405 Method Not Allowed\r\n\r\n").await?;
-        return Err(Error::InvalidHttpProtocol(format!("Method not allowed: {}", method)));
+        stream
+            .write_all(b"HTTP/1.1 405 Method Not Allowed\r\n\r\n")
+            .await?;
+        return Err(Error::InvalidHttpProtocol(format!(
+            "Method not allowed: {}",
+            method
+        )));
     }
 
     // Parse host:port
@@ -93,11 +98,11 @@ async fn handle_client(
     // Read headers
     let mut has_auth = false;
     let mut auth_header = String::new();
-    
+
     loop {
         let mut line = String::new();
         reader.read_line(&mut line).await?;
-        
+
         if line.trim().is_empty() {
             break;
         }
@@ -126,14 +131,18 @@ async fn handle_client(
         Err(e) => {
             warn!("Failed to connect to {}: {}", target, e);
             let mut stream = reader.into_inner();
-            stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await?;
+            stream
+                .write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+                .await?;
             return Err(Error::ConnectionRefused(target));
         }
     };
 
     // Send success response
     let mut stream = reader.into_inner();
-    stream.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n").await?;
+    stream
+        .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+        .await?;
 
     // Create connection for tracking
     let conn = Connection::new(
@@ -147,9 +156,11 @@ async fn handle_client(
 
     // Relay traffic
     let (bytes_sent, bytes_received) = relay_tcp(stream, target_stream).await;
-    
+
     // Record stats
-    stats.close_connection(conn_id, bytes_sent, bytes_received).await;
+    stats
+        .close_connection(conn_id, bytes_sent, bytes_received)
+        .await;
 
     info!(
         "HTTP CONNECT closed: {} -> {}:{} (sent: {}, recv: {})",
@@ -162,15 +173,18 @@ async fn handle_client(
 /// Parse host:port string.
 fn parse_host_port(target: &str) -> Result<(String, u16)> {
     let parts: Vec<&str> = target.rsplitn(2, ':').collect();
-    
+
     if parts.len() != 2 {
-        return Err(Error::InvalidHttpProtocol(format!("Invalid target: {}", target)));
+        return Err(Error::InvalidHttpProtocol(format!(
+            "Invalid target: {}",
+            target
+        )));
     }
 
     let port: u16 = parts[0]
         .parse()
         .map_err(|_| Error::InvalidHttpProtocol(format!("Invalid port: {}", parts[0])))?;
-    
+
     let host = parts[1].to_string();
 
     Ok((host, port))
@@ -203,26 +217,26 @@ fn verify_auth(header: &str, username: &str, password: &str) -> bool {
 /// Simple base64 decode.
 fn base64_decode(input: &str) -> Option<String> {
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
+
     let mut output = Vec::new();
     let mut buffer: u32 = 0;
     let mut bits = 0;
-    
+
     for c in input.chars() {
         if c == '=' {
             break;
         }
-        
+
         let value = CHARSET.iter().position(|&x| x as char == c)? as u32;
         buffer = (buffer << 6) | value;
         bits += 6;
-        
+
         if bits >= 8 {
             bits -= 8;
             output.push((buffer >> bits) as u8);
             buffer &= (1 << bits) - 1;
         }
     }
-    
+
     String::from_utf8(output).ok()
 }

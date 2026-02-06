@@ -60,7 +60,7 @@ impl Socks5Proxy {
                 Ok((stream, client_addr)) => {
                     let auth = self.auth.clone();
                     let stats = Arc::clone(&self.stats);
-                    
+
                     tokio::spawn(async move {
                         if let Err(e) = handle_client(stream, client_addr, auth, stats).await {
                             debug!("Connection from {} error: {}", client_addr, e);
@@ -87,7 +87,7 @@ async fn handle_client(
     // Read version and auth methods
     let mut buf = [0u8; 2];
     stream.read_exact(&mut buf).await?;
-    
+
     if buf[0] != SOCKS_VERSION {
         return Err(Error::InvalidSocks5Protocol(format!(
             "Invalid version: {}",
@@ -102,11 +102,13 @@ async fn handle_client(
     // Handle authentication
     if auth.is_some() {
         if !methods.contains(&AUTH_PASSWORD) {
-            stream.write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE]).await?;
+            stream
+                .write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE])
+                .await?;
             return Err(Error::AuthenticationFailed);
         }
         stream.write_all(&[SOCKS_VERSION, AUTH_PASSWORD]).await?;
-        
+
         // Read username/password auth
         let (username, password) = auth.as_ref().unwrap();
         if !authenticate(&mut stream, username, password).await? {
@@ -114,7 +116,9 @@ async fn handle_client(
         }
     } else {
         if !methods.contains(&AUTH_NONE) {
-            stream.write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE]).await?;
+            stream
+                .write_all(&[SOCKS_VERSION, AUTH_NO_ACCEPTABLE])
+                .await?;
             return Err(Error::AuthenticationFailed);
         }
         stream.write_all(&[SOCKS_VERSION, AUTH_NONE]).await?;
@@ -125,7 +129,9 @@ async fn handle_client(
     stream.read_exact(&mut header).await?;
 
     if header[0] != SOCKS_VERSION {
-        return Err(Error::InvalidSocks5Protocol("Invalid request version".into()));
+        return Err(Error::InvalidSocks5Protocol(
+            "Invalid request version".into(),
+        ));
     }
 
     let cmd = header[1];
@@ -167,9 +173,11 @@ async fn handle_client(
 
     // Relay traffic
     let (bytes_sent, bytes_received) = relay_tcp(stream, target_stream).await;
-    
+
     // Record stats
-    stats.close_connection(conn_id, bytes_sent, bytes_received).await;
+    stats
+        .close_connection(conn_id, bytes_sent, bytes_received)
+        .await;
 
     info!(
         "SOCKS5 connection closed: {} -> {}:{} (sent: {}, recv: {})",
@@ -180,10 +188,14 @@ async fn handle_client(
 }
 
 /// Authenticate using username/password.
-async fn authenticate(stream: &mut TcpStream, expected_user: &str, expected_pass: &str) -> Result<bool> {
+async fn authenticate(
+    stream: &mut TcpStream,
+    expected_user: &str,
+    expected_pass: &str,
+) -> Result<bool> {
     let mut buf = [0u8; 1];
     stream.read_exact(&mut buf).await?;
-    
+
     // Auth version (should be 0x01)
     if buf[0] != 0x01 {
         return Ok(false);
@@ -262,10 +274,14 @@ async fn send_reply(stream: &mut TcpStream, rep: u8) -> Result<()> {
     let reply = [
         SOCKS_VERSION,
         rep,
-        0x00,           // RSV
+        0x00, // RSV
         ADDR_TYPE_IPV4,
-        0, 0, 0, 0,     // BND.ADDR
-        0, 0,           // BND.PORT
+        0,
+        0,
+        0,
+        0, // BND.ADDR
+        0,
+        0, // BND.PORT
     ];
     stream.write_all(&reply).await?;
     Ok(())

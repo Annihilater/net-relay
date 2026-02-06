@@ -14,7 +14,7 @@ pub async fn relay_tcp(client: TcpStream, target: TcpStream) -> (u64, u64) {
     let client_to_target = async {
         let mut buf = [0u8; 8192];
         let mut total: u64 = 0;
-        
+
         loop {
             match client_read.read(&mut buf).await {
                 Ok(0) => break,
@@ -27,7 +27,7 @@ pub async fn relay_tcp(client: TcpStream, target: TcpStream) -> (u64, u64) {
                 Err(_) => break,
             }
         }
-        
+
         let _ = target_write.shutdown().await;
         total
     };
@@ -35,7 +35,7 @@ pub async fn relay_tcp(client: TcpStream, target: TcpStream) -> (u64, u64) {
     let target_to_client = async {
         let mut buf = [0u8; 8192];
         let mut total: u64 = 0;
-        
+
         loop {
             match target_read.read(&mut buf).await {
                 Ok(0) => break,
@@ -48,14 +48,17 @@ pub async fn relay_tcp(client: TcpStream, target: TcpStream) -> (u64, u64) {
                 Err(_) => break,
             }
         }
-        
+
         let _ = client_write.shutdown().await;
         total
     };
 
     let (bytes_sent, bytes_received) = tokio::join!(client_to_target, target_to_client);
-    
-    debug!("Relay complete: sent={}, received={}", bytes_sent, bytes_received);
-    
+
+    debug!(
+        "Relay complete: sent={}, received={}",
+        bytes_sent, bytes_received
+    );
+
     (bytes_sent, bytes_received)
 }

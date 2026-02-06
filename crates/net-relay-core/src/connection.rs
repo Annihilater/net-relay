@@ -64,7 +64,12 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     /// Create a new connection info.
-    pub fn new(protocol: Protocol, client_addr: String, target_addr: String, target_port: u16) -> Self {
+    pub fn new(
+        protocol: Protocol,
+        client_addr: String,
+        target_addr: String,
+        target_port: u16,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             protocol,
@@ -121,7 +126,12 @@ pub struct Connection {
 
 impl Connection {
     /// Create a new connection.
-    pub fn new(protocol: Protocol, client_addr: String, target_addr: String, target_port: u16) -> Self {
+    pub fn new(
+        protocol: Protocol,
+        client_addr: String,
+        target_addr: String,
+        target_port: u16,
+    ) -> Self {
         Self {
             info: ConnectionInfo::new(protocol, client_addr, target_addr, target_port),
         }

@@ -55,7 +55,7 @@ pub async fn health() -> Json<ApiResponse<HealthResponse>> {
 pub async fn get_stats(State(stats): State<Arc<Stats>>) -> Json<ApiResponse<StatsResponse>> {
     let aggregated = stats.get_aggregated().await;
     let active_connections = stats.get_active().await;
-    
+
     ApiResponse::ok(StatsResponse {
         aggregated,
         active_connections,
@@ -63,7 +63,9 @@ pub async fn get_stats(State(stats): State<Arc<Stats>>) -> Json<ApiResponse<Stat
 }
 
 /// Get active connections.
-pub async fn get_connections(State(stats): State<Arc<Stats>>) -> Json<ApiResponse<Vec<ConnectionInfo>>> {
+pub async fn get_connections(
+    State(stats): State<Arc<Stats>>,
+) -> Json<ApiResponse<Vec<ConnectionInfo>>> {
     let connections = stats.get_active().await;
     ApiResponse::ok(connections)
 }

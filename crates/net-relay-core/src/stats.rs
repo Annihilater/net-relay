@@ -87,21 +87,22 @@ impl Stats {
     /// Update connection bytes.
     pub fn add_bytes(&self, sent: u64, received: u64) {
         self.total_bytes_sent.fetch_add(sent, Ordering::Relaxed);
-        self.total_bytes_received.fetch_add(received, Ordering::Relaxed);
+        self.total_bytes_received
+            .fetch_add(received, Ordering::Relaxed);
     }
 
     /// Mark a connection as closed and move to history.
     pub async fn close_connection(&self, id: uuid::Uuid, bytes_sent: u64, bytes_received: u64) {
         let mut active = self.active.write().await;
-        
+
         if let Some(pos) = active.iter().position(|c| c.id == id) {
             let mut info = active.remove(pos);
             info.set_closed();
             info.bytes_sent = bytes_sent;
             info.bytes_received = bytes_received;
-            
+
             self.add_bytes(bytes_sent, bytes_received);
-            
+
             let mut history = self.history.write().await;
             if history.len() >= self.max_history {
                 history.pop_front();
@@ -113,7 +114,7 @@ impl Stats {
     /// Get aggregated statistics.
     pub async fn get_aggregated(&self) -> AggregatedStats {
         let active_count = self.active.read().await.len() as u64;
-        
+
         AggregatedStats {
             total_connections: self.total_connections.load(Ordering::Relaxed),
             active_connections: active_count,
