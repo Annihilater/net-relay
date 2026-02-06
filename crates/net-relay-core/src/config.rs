@@ -31,6 +31,10 @@ pub struct Config {
     /// Access control configuration.
     #[serde(default)]
     pub access_control: AccessControlConfig,
+
+    /// Dashboard authentication configuration.
+    #[serde(default)]
+    pub dashboard: DashboardConfig,
 }
 
 impl Config {
@@ -131,6 +135,24 @@ impl ConfigManager {
         }
         Ok(())
     }
+
+    /// Get dashboard configuration.
+    pub async fn get_dashboard(&self) -> DashboardConfig {
+        let config = self.config.read().await;
+        config.dashboard.clone()
+    }
+
+    /// Check if dashboard authentication is enabled.
+    pub async fn is_dashboard_auth_enabled(&self) -> bool {
+        let config = self.config.read().await;
+        config.dashboard.auth_enabled
+    }
+
+    /// Authenticate for dashboard access.
+    pub async fn authenticate_dashboard(&self, username: &str, password: &str) -> bool {
+        let config = self.config.read().await;
+        config.dashboard.authenticate(username, password)
+    }
 }
 
 /// Server binding configuration.
@@ -202,6 +224,36 @@ impl Default for LoggingConfig {
 
 fn default_log_level() -> String {
     "info".to_string()
+}
+
+/// Dashboard authentication configuration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DashboardConfig {
+    /// Enable dashboard authentication.
+    #[serde(default)]
+    pub auth_enabled: bool,
+
+    /// Username for dashboard login.
+    #[serde(default)]
+    pub username: Option<String>,
+
+    /// Password for dashboard login.
+    #[serde(default)]
+    pub password: Option<String>,
+}
+
+impl DashboardConfig {
+    /// Validate username and password for dashboard access.
+    pub fn authenticate(&self, username: &str, password: &str) -> bool {
+        if !self.auth_enabled {
+            return true;
+        }
+
+        match (&self.username, &self.password) {
+            (Some(u), Some(p)) => u == username && p == password,
+            _ => false,
+        }
+    }
 }
 
 /// User account for authentication.

@@ -21,6 +21,15 @@ level = "info"
 # Log to file (optional)
 # file = "/var/log/net-relay/proxy.log"
 
+[dashboard]
+# Enable authentication for the web dashboard
+# When enabled, users must login to access the dashboard and API
+auth_enabled = false
+
+# Dashboard login credentials (required when auth_enabled = true)
+# username = "admin"
+# password = "your-secure-password"
+
 [security]
 # Enable authentication (recommended for production)
 auth_enabled = false

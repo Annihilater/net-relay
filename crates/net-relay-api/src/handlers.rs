@@ -1,6 +1,8 @@
 //! API route handlers.
 
 use axum::extract::State;
+use axum::http::header::SET_COOKIE;
+use axum::http::HeaderMap;
 use axum::Json;
 use net_relay_core::stats::{AggregatedStats, ConnectionStats, Stats, UserStats};
 use net_relay_core::{
@@ -9,11 +11,14 @@ use net_relay_core::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::auth::SessionStore;
+
 /// Shared application state.
 #[derive(Clone)]
 pub struct AppState {
     pub stats: Arc<Stats>,
     pub config_manager: ConfigManager,
+    pub session_store: SessionStore,
 }
 
 /// API response wrapper.
@@ -437,4 +442,150 @@ pub async fn remove_user(
 pub async fn get_user_stats(State(state): State<AppState>) -> Json<ApiResponse<Vec<UserStats>>> {
     let user_stats = state.stats.get_user_stats().await;
     ApiResponse::ok(user_stats)
+}
+
+// ==================== Authentication API ====================
+
+/// Login request.
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// Login response.
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub authenticated: bool,
+    pub username: Option<String>,
+}
+
+/// Auth check response.
+#[derive(Debug, Serialize)]
+pub struct AuthCheckResponse {
+    pub auth_enabled: bool,
+    pub authenticated: bool,
+    pub username: Option<String>,
+}
+
+/// Check authentication status.
+pub async fn auth_check(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Json<ApiResponse<AuthCheckResponse>> {
+    let auth_enabled = state.config_manager.is_dashboard_auth_enabled().await;
+
+    if !auth_enabled {
+        return ApiResponse::ok(AuthCheckResponse {
+            auth_enabled: false,
+            authenticated: true,
+            username: None,
+        });
+    }
+
+    // Check for session cookie and validate
+    let cookie_header = headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|h| h.to_str().ok());
+
+    let username = match cookie_header {
+        Some(cookies) => match extract_session_token(cookies) {
+            Some(token) => state.session_store.validate(&token).await,
+            None => None,
+        },
+        None => None,
+    };
+
+    let authenticated = username.is_some();
+
+    ApiResponse::ok(AuthCheckResponse {
+        auth_enabled,
+        authenticated,
+        username,
+    })
+}
+
+/// Login handler.
+pub async fn login(
+    State(state): State<AppState>,
+    Json(req): Json<LoginRequest>,
+) -> (HeaderMap, Json<ApiResponse<LoginResponse>>) {
+    let mut headers = HeaderMap::new();
+
+    // Check credentials
+    if state
+        .config_manager
+        .authenticate_dashboard(&req.username, &req.password)
+        .await
+    {
+        // Create session
+        let token = state
+            .session_store
+            .create_session(req.username.clone())
+            .await;
+
+        // Set cookie
+        let cookie = format!(
+            "net_relay_session={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400",
+            token
+        );
+        headers.insert(SET_COOKIE, cookie.parse().unwrap());
+
+        (
+            headers,
+            ApiResponse::ok(LoginResponse {
+                authenticated: true,
+                username: Some(req.username),
+            }),
+        )
+    } else {
+        (
+            headers,
+            Json(ApiResponse {
+                success: false,
+                data: LoginResponse {
+                    authenticated: false,
+                    username: None,
+                },
+                message: Some("Invalid username or password".to_string()),
+            }),
+        )
+    }
+}
+
+/// Logout handler.
+pub async fn logout(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (HeaderMap, Json<ApiResponse<bool>>) {
+    let mut response_headers = HeaderMap::new();
+
+    // Get and remove session
+    if let Some(cookies) = headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|h| h.to_str().ok())
+    {
+        if let Some(token) = extract_session_token(cookies) {
+            state.session_store.remove(&token).await;
+        }
+    }
+
+    // Clear cookie
+    let cookie = "net_relay_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
+    response_headers.insert(SET_COOKIE, cookie.parse().unwrap());
+
+    (response_headers, ApiResponse::ok(true))
+}
+
+/// Extract session token from cookie header.
+fn extract_session_token(cookies: &str) -> Option<String> {
+    for cookie in cookies.split(';') {
+        let cookie = cookie.trim();
+        if let Some(value) = cookie.strip_prefix("net_relay_session=") {
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
 }

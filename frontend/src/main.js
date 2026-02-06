@@ -6,6 +6,191 @@
 const API_BASE = '/api';
 const REFRESH_INTERVAL = 2000; // 2 seconds
 
+/**
+ * Wrapper for fetch that handles authentication.
+ */
+async function apiFetch(url, options = {}) {
+    const response = await fetch(url, {
+        ...options,
+        credentials: 'same-origin',
+    });
+
+    // Handle 401 Unauthorized - show login page
+    if (response.status === 401) {
+        showLoginPage();
+        throw new Error('Authentication required');
+    }
+
+    return response;
+}
+
+/**
+ * Show login page, hide dashboard.
+ */
+function showLoginPage() {
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('dashboard-container').style.display = 'none';
+}
+
+/**
+ * Show dashboard, hide login page.
+ */
+function showDashboard() {
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('dashboard-container').style.display = 'flex';
+}
+
+/**
+ * Authentication Manager
+ */
+class AuthManager {
+    constructor() {
+        this.isAuthenticated = false;
+        this.authEnabled = false;
+        this.username = null;
+    }
+
+    async checkAuth() {
+        try {
+            const response = await fetch(`${API_BASE}/auth/check`, {
+                credentials: 'same-origin',
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.authEnabled = data.data.auth_enabled;
+                this.isAuthenticated = data.data.authenticated;
+                this.username = data.data.username;
+
+                if (!this.authEnabled || this.isAuthenticated) {
+                    showDashboard();
+                    return true;
+                } else {
+                    showLoginPage();
+                    return false;
+                }
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            // If auth check fails, assume no auth required
+            showDashboard();
+            return true;
+        }
+        return false;
+    }
+
+    async login(username, password) {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ username, password }),
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.data.authenticated) {
+            this.isAuthenticated = true;
+            this.username = data.data.username;
+            return { success: true };
+        } else {
+            return { success: false, error: data.message || 'Invalid credentials' };
+        }
+    }
+
+    async logout() {
+        try {
+            await fetch(`${API_BASE}/auth/logout`, {
+                method: 'POST',
+                credentials: 'same-origin',
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+
+        this.isAuthenticated = false;
+        this.username = null;
+        showLoginPage();
+    }
+}
+
+// Global auth manager
+const authManager = new AuthManager();
+
+/**
+ * Setup login form handlers
+ */
+function setupLoginForm() {
+    const form = document.getElementById('login-form');
+    const loginBtn = document.getElementById('login-btn');
+    const errorDiv = document.getElementById('login-error');
+    const btnText = loginBtn.querySelector('.btn-text');
+    const btnLoading = loginBtn.querySelector('.btn-loading');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        if (!username || !password) {
+            showLoginError('Please enter username and password');
+            return;
+        }
+
+        // Show loading state
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'flex';
+        loginBtn.disabled = true;
+        errorDiv.style.display = 'none';
+
+        try {
+            const result = await authManager.login(username, password);
+
+            if (result.success) {
+                showDashboard();
+                // Initialize dashboard after successful login
+                if (!window.dashboard) {
+                    window.dashboard = new Dashboard();
+                } else {
+                    window.dashboard.refresh();
+                }
+                // Clear form
+                form.reset();
+            } else {
+                showLoginError(result.error);
+            }
+        } catch (error) {
+            showLoginError('Network error. Please try again.');
+            console.error('Login error:', error);
+        } finally {
+            // Reset button state
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+            loginBtn.disabled = false;
+        }
+    });
+
+    function showLoginError(message) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        // Shake animation
+        errorDiv.style.animation = 'none';
+        errorDiv.offsetHeight;
+        errorDiv.style.animation = 'shake 0.3s ease';
+    }
+}
+
+/**
+ * Setup logout button
+ */
+function setupLogoutButton() {
+    const logoutBtn = document.getElementById('logout-btn');
+    logoutBtn.addEventListener('click', () => {
+        authManager.logout();
+    });
+}
+
 class Dashboard {
     constructor() {
         this.elements = {
@@ -21,11 +206,14 @@ class Dashboard {
             version: document.getElementById('version'),
             userStatsPanel: document.getElementById('user-stats-panel'),
             userStatsGrid: document.getElementById('user-stats-grid'),
+            logoutBtn: document.getElementById('logout-btn'),
         };
         
         this.isConnected = false;
         this.accessControl = null;
         this.securityConfig = null;
+        this.refreshInterval = null;
+        this.historyInterval = null;
         this.init();
     }
 
@@ -33,6 +221,11 @@ class Dashboard {
         this.setupTabs();
         this.setupSettingsHandlers();
         this.setupUserHandlers();
+        
+        // Show/hide logout button based on auth status
+        if (authManager.authEnabled) {
+            this.elements.logoutBtn.style.display = 'inline-flex';
+        }
         
         await this.checkHealth();
         await this.refresh();
@@ -162,7 +355,7 @@ class Dashboard {
 
     async loadAccessControl() {
         try {
-            const response = await fetch(`${API_BASE}/config/access-control`);
+            const response = await apiFetch(`${API_BASE}/config/access-control`);
             const data = await response.json();
             
             if (data.success) {
@@ -284,7 +477,7 @@ class Dashboard {
 
     async addIpBlacklist(ip) {
         try {
-            const response = await fetch(`${API_BASE}/config/ip/blacklist`, {
+            const response = await apiFetch(`${API_BASE}/config/ip/blacklist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip })
@@ -301,7 +494,7 @@ class Dashboard {
 
     async removeIpBlacklist(ip) {
         try {
-            const response = await fetch(`${API_BASE}/config/ip/blacklist`, {
+            const response = await apiFetch(`${API_BASE}/config/ip/blacklist`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip })
@@ -318,7 +511,7 @@ class Dashboard {
 
     async addIpWhitelist(ip) {
         try {
-            const response = await fetch(`${API_BASE}/config/ip/whitelist`, {
+            const response = await apiFetch(`${API_BASE}/config/ip/whitelist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip })
@@ -335,7 +528,7 @@ class Dashboard {
 
     async removeIpWhitelist(ip) {
         try {
-            const response = await fetch(`${API_BASE}/config/ip/whitelist`, {
+            const response = await apiFetch(`${API_BASE}/config/ip/whitelist`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip })
@@ -352,7 +545,7 @@ class Dashboard {
 
     async addRule(rule) {
         try {
-            const response = await fetch(`${API_BASE}/config/rules`, {
+            const response = await apiFetch(`${API_BASE}/config/rules`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(rule)
@@ -369,7 +562,7 @@ class Dashboard {
 
     async removeRule(index) {
         try {
-            const response = await fetch(`${API_BASE}/config/rules`, {
+            const response = await apiFetch(`${API_BASE}/config/rules`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ index })
@@ -427,7 +620,7 @@ class Dashboard {
 
     async loadSecurityConfig() {
         try {
-            const response = await fetch(`${API_BASE}/config/security`);
+            const response = await apiFetch(`${API_BASE}/config/security`);
             const data = await response.json();
             
             if (data.success) {
@@ -526,7 +719,7 @@ class Dashboard {
 
     async updateAuthEnabled(enabled) {
         try {
-            const response = await fetch(`${API_BASE}/config/security`, {
+            const response = await apiFetch(`${API_BASE}/config/security`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ auth_enabled: enabled })
@@ -543,7 +736,7 @@ class Dashboard {
 
     async addUser(user) {
         try {
-            const response = await fetch(`${API_BASE}/config/users`, {
+            const response = await apiFetch(`${API_BASE}/config/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(user)
@@ -564,7 +757,7 @@ class Dashboard {
         if (!confirm(`Remove user "${username}"?`)) return;
         
         try {
-            const response = await fetch(`${API_BASE}/config/users`, {
+            const response = await apiFetch(`${API_BASE}/config/users`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username })
@@ -583,7 +776,7 @@ class Dashboard {
 
     async checkHealth() {
         try {
-            const response = await fetch(`${API_BASE}/health`);
+            const response = await apiFetch(`${API_BASE}/health`);
             const data = await response.json();
             
             if (data.success) {
@@ -613,7 +806,7 @@ class Dashboard {
 
     async refresh() {
         try {
-            const response = await fetch(`${API_BASE}/stats`);
+            const response = await apiFetch(`${API_BASE}/stats`);
             const data = await response.json();
             
             if (data.success) {
@@ -704,7 +897,7 @@ class Dashboard {
 
     async loadHistory() {
         try {
-            const response = await fetch(`${API_BASE}/history?limit=50`);
+            const response = await apiFetch(`${API_BASE}/history?limit=50`);
             const data = await response.json();
             
             if (data.success) {
@@ -783,7 +976,17 @@ class Dashboard {
     }
 }
 
-// Initialize dashboard when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.dashboard = new Dashboard();
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', async () => {
+    // Setup login form handlers first
+    setupLoginForm();
+    setupLogoutButton();
+
+    // Check auth status and show appropriate view
+    const authenticated = await authManager.checkAuth();
+
+    // Initialize dashboard if authenticated or no auth required
+    if (authenticated) {
+        window.dashboard = new Dashboard();
+    }
 });

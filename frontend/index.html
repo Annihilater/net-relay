@@ -8,96 +8,150 @@
 </head>
 <body>
     <div class="app">
-        <header class="header">
-            <div class="header-content">
-                <h1>🌐 Net-Relay</h1>
-                <nav class="nav-tabs">
-                    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-                    <button class="tab-btn" data-tab="settings">Settings</button>
-                </nav>
-                <div class="header-status">
-                    <span class="auth-badge" id="auth-badge" title="Authentication Status">
-                        <span class="auth-icon">🔓</span>
-                        <span class="auth-text">Auth Off</span>
-                    </span>
-                    <span class="status" id="status">Connecting...</span>
+        <!-- Login Page -->
+        <div id="login-page" class="login-page">
+            <div class="login-container">
+                <div class="login-header">
+                    <div class="login-logo">🌐</div>
+                    <h1>Net-Relay</h1>
+                    <p class="login-subtitle">Network Relay Proxy Service</p>
+                </div>
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="login-username" name="username" placeholder="Enter your username" autocomplete="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+                    </div>
+                    <div id="login-error" class="login-error" style="display: none;"></div>
+                    <button type="submit" class="login-btn" id="login-btn">
+                        <span class="btn-text">Sign In</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span>
+                            Signing in...
+                        </span>
+                    </button>
+                </form>
+                <div class="login-footer">
+                    <p>Secure network relay management</p>
                 </div>
             </div>
-        </header>
+            <div class="login-features">
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Secure Proxy</h3>
+                    <p>SOCKS5 & HTTP CONNECT protocols with authentication</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Real-time Monitoring</h3>
+                    <p>Track connections, bandwidth, and user activity</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>High Performance</h3>
+                    <p>Built with Rust for maximum speed and reliability</p>
+                </div>
+            </div>
+        </div>
 
-        <main class="main">
-            <!-- Dashboard Tab -->
-            <div id="dashboard-tab" class="tab-content active">
-                <!-- Stats Cards -->
-                <section class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">🔌</div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="active-connections">-</span>
-                            <span class="stat-label">Active Connections</span>
-                        </div>
+        <!-- Dashboard (hidden by default when auth enabled) -->
+        <div id="dashboard-container" class="dashboard-container" style="display: none;">
+            <header class="header">
+                <div class="header-content">
+                    <h1>🌐 Net-Relay</h1>
+                    <nav class="nav-tabs">
+                        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                        <button class="tab-btn" data-tab="settings">Settings</button>
+                    </nav>
+                    <div class="header-status">
+                        <span class="auth-badge" id="auth-badge" title="Authentication Status">
+                            <span class="auth-icon">🔓</span>
+                            <span class="auth-text">Auth Off</span>
+                        </span>
+                        <span class="status" id="status">Connecting...</span>
+                        <button id="logout-btn" class="logout-btn" style="display: none;" title="Sign Out">
+                            <span>Logout</span>
+                        </button>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="total-connections">-</span>
-                            <span class="stat-label">Total Connections</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⬆️</div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="bytes-sent">-</span>
-                            <span class="stat-label">Data Sent</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⬇️</div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="bytes-received">-</span>
-                            <span class="stat-label">Data Received</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⏱️</div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="uptime">-</span>
-                            <span class="stat-label">Uptime</span>
-                        </div>
-                    </div>
-                </section>
+                </div>
+            </header>
 
-                <!-- Active Connections -->
-                <section class="panel">
-                    <h2>Active Connections</h2>
-                    <div class="table-container">
-                        <table class="data-table" id="active-table">
-                            <thead>
-                                <tr>
-                                    <th>Protocol</th>
-                                    <th>Client</th>
-                                    <th>Target</th>
-                                    <th>User</th>
-                                    <th>Duration</th>
-                                    <th>Sent</th>
-                                    <th>Received</th>
-                                </tr>
-                            </thead>
-                            <tbody id="active-tbody">
-                                <tr class="empty-row">
-                                    <td colspan="7">No active connections</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+            <main class="main">
+                <!-- Dashboard Tab -->
+                <div id="dashboard-tab" class="tab-content active">
+                    <!-- Stats Cards -->
+                    <section class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🔌</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="active-connections">-</span>
+                                <span class="stat-label">Active Connections</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-connections">-</span>
+                                <span class="stat-label">Total Connections</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⬆️</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="bytes-sent">-</span>
+                                <span class="stat-label">Data Sent</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⬇️</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="bytes-received">-</span>
+                                <span class="stat-label">Data Received</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏱️</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="uptime">-</span>
+                                <span class="stat-label">Uptime</span>
+                            </div>
+                        </div>
+                    </section>
 
-                <!-- Per-User Stats -->
-                <section class="panel" id="user-stats-panel" style="display: none;">
-                    <h2>👥 Per-User Traffic</h2>
-                    <div class="user-stats-grid" id="user-stats-grid">
-                        <!-- User stat cards will be added dynamically -->
-                    </div>
+                    <!-- Active Connections -->
+                    <section class="panel">
+                        <h2>Active Connections</h2>
+                        <div class="table-container">
+                            <table class="data-table" id="active-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocol</th>
+                                        <th>Client</th>
+                                        <th>Target</th>
+                                        <th>User</th>
+                                        <th>Duration</th>
+                                        <th>Sent</th>
+                                        <th>Received</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="active-tbody">
+                                    <tr class="empty-row">
+                                        <td colspan="7">No active connections</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- Per-User Stats -->
+                    <section class="panel" id="user-stats-panel" style="display: none;">
+                        <h2>👥 Per-User Traffic</h2>
+                        <div class="user-stats-grid" id="user-stats-grid">
+                            <!-- User stat cards will be added dynamically -->
+                        </div>
                 </section>
 
                 <!-- Connection History -->

@@ -9,7 +9,9 @@ pub mod error;
 pub mod proxy;
 pub mod stats;
 
-pub use config::{AccessControlConfig, AccessRule, Config, ConfigManager, RuleAction, User};
+pub use config::{
+    AccessControlConfig, AccessRule, Config, ConfigManager, DashboardConfig, RuleAction, User,
+};
 pub use connection::{Connection, ConnectionInfo, ConnectionState};
 pub use error::{Error, Result};
 pub use stats::{ConnectionStats, Stats, UserStats};

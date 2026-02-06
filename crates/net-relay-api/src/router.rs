@@ -1,5 +1,6 @@
 //! API router configuration.
 
+use axum::middleware;
 use axum::routing::{delete, get, post, put};
 use axum::Router;
 use net_relay_core::{ConfigManager, Stats};
@@ -9,6 +10,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
+use crate::auth::{session_auth_middleware, SessionStore};
 use crate::handlers::{self, AppState};
 
 /// Create the API router.
@@ -17,11 +19,22 @@ pub fn create_router(
     config_manager: ConfigManager,
     static_dir: Option<PathBuf>,
 ) -> Router {
+    let session_store = SessionStore::new();
+
     let state = AppState {
         stats,
-        config_manager,
+        config_manager: config_manager.clone(),
+        session_store: session_store.clone(),
     };
 
+    // Auth routes (public, no auth required)
+    let auth_routes = Router::new()
+        .route("/auth/check", get(handlers::auth_check))
+        .route("/auth/login", post(handlers::login))
+        .route("/auth/logout", post(handlers::logout))
+        .with_state(state.clone());
+
+    // Protected API routes
     let api_routes = Router::new()
         // Health & Stats
         .route("/health", get(handlers::health))
@@ -63,8 +76,18 @@ pub fn create_router(
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // Create session auth middleware layer
+    let auth_config_manager = config_manager.clone();
+    let auth_session_store = session_store.clone();
+    let auth_layer = middleware::from_fn(move |req, next| {
+        let cm = auth_config_manager.clone();
+        let ss = auth_session_store.clone();
+        async move { session_auth_middleware(cm, ss, req, next).await }
+    });
+
     let mut app = Router::new()
-        .nest("/api", api_routes)
+        .nest("/api", auth_routes.merge(api_routes))
+        .layer(auth_layer)
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
