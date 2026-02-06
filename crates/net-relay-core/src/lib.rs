@@ -10,7 +10,8 @@ pub mod proxy;
 pub mod stats;
 
 pub use config::{
-    AccessControlConfig, AccessRule, Config, ConfigManager, DashboardConfig, RuleAction, User,
+    AccessControlConfig, AccessRule, Config, ConfigManager, DashboardConfig, RuleAction,
+    ServerConfig, User,
 };
 pub use connection::{Connection, ConnectionInfo, ConnectionState};
 pub use error::{Error, Result};

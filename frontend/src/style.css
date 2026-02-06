@@ -228,6 +228,64 @@ body {
     font-size: 0.875rem;
 }
 
+/* Server Configuration */
+.server-config-grid {
+    margin-bottom: 1rem;
+}
+
+.server-input {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.server-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.2);
+}
+
+.server-input::-webkit-inner-spin-button,
+.server-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+.server-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.save-status {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.save-status.success {
+    color: var(--success);
+}
+
+.save-status.error {
+    color: var(--error);
+}
+
+.restart-warning {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: rgba(255, 173, 31, 0.15);
+    border: 1px solid var(--warning);
+    border-radius: 8px;
+    color: var(--warning);
+    font-size: 0.875rem;
+}
+
 /* Footer */
 .footer {
     background-color: var(--bg-secondary);

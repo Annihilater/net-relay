@@ -69,6 +69,9 @@ pub fn create_router(
         .route("/config/users", post(handlers::add_user))
         .route("/config/users", put(handlers::update_user))
         .route("/config/users", delete(handlers::remove_user))
+        // Server configuration
+        .route("/config/server", get(handlers::get_server_config))
+        .route("/config/server", put(handlers::update_server_config))
         .with_state(state);
 
     let cors = CorsLayer::new()

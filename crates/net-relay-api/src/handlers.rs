@@ -6,7 +6,7 @@ use axum::http::HeaderMap;
 use axum::Json;
 use net_relay_core::stats::{AggregatedStats, ConnectionStats, Stats, UserStats};
 use net_relay_core::{
-    AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo, User,
+    AccessControlConfig, AccessRule, Config, ConfigManager, ConnectionInfo, ServerConfig, User,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -588,4 +588,79 @@ fn extract_session_token(cookies: &str) -> Option<String> {
         }
     }
     None
+}
+
+// ==================== Server Configuration API ====================
+
+/// Server configuration response.
+#[derive(Debug, Serialize)]
+pub struct ServerConfigResponse {
+    pub host: String,
+    pub socks_port: u16,
+    pub http_port: u16,
+    pub api_port: u16,
+    pub requires_restart: bool,
+}
+
+impl From<ServerConfig> for ServerConfigResponse {
+    fn from(config: ServerConfig) -> Self {
+        Self {
+            host: config.host,
+            socks_port: config.socks_port,
+            http_port: config.http_port,
+            api_port: config.api_port,
+            requires_restart: false,
+        }
+    }
+}
+
+/// Get server configuration.
+pub async fn get_server_config(
+    State(state): State<AppState>,
+) -> Json<ApiResponse<ServerConfigResponse>> {
+    let server = state.config_manager.get_server().await;
+    ApiResponse::ok(ServerConfigResponse::from(server))
+}
+
+/// Update server configuration request.
+#[derive(Debug, Deserialize)]
+pub struct UpdateServerRequest {
+    pub host: Option<String>,
+    pub socks_port: Option<u16>,
+    pub http_port: Option<u16>,
+    pub api_port: Option<u16>,
+}
+
+/// Update server configuration.
+pub async fn update_server_config(
+    State(state): State<AppState>,
+    Json(req): Json<UpdateServerRequest>,
+) -> Json<ApiResponse<ServerConfigResponse>> {
+    let mut server = state.config_manager.get_server().await;
+
+    if let Some(host) = req.host {
+        server.host = host;
+    }
+    if let Some(port) = req.socks_port {
+        server.socks_port = port;
+    }
+    if let Some(port) = req.http_port {
+        server.http_port = port;
+    }
+    if let Some(port) = req.api_port {
+        server.api_port = port;
+    }
+
+    match state.config_manager.update_server(server.clone()).await {
+        Ok(_) => {
+            let mut response = ServerConfigResponse::from(server);
+            response.requires_restart = true;
+            ApiResponse::ok(response)
+        }
+        Err(e) => Json(ApiResponse {
+            success: false,
+            data: ServerConfigResponse::from(server),
+            message: Some(format!("Failed to save: {}", e)),
+        }),
+    }
 }

@@ -212,6 +212,7 @@ class Dashboard {
         this.isConnected = false;
         this.accessControl = null;
         this.securityConfig = null;
+        this.serverConfig = null;
         this.refreshInterval = null;
         this.historyInterval = null;
         this.init();
@@ -221,6 +222,7 @@ class Dashboard {
         this.setupTabs();
         this.setupSettingsHandlers();
         this.setupUserHandlers();
+        this.setupServerConfigHandlers();
         
         // Show/hide logout button based on auth status
         if (authManager.authEnabled) {
@@ -232,6 +234,7 @@ class Dashboard {
         await this.loadHistory();
         await this.loadAccessControl();
         await this.loadSecurityConfig();
+        await this.loadServerConfig();
         
         // Start periodic refresh
         setInterval(() => this.refresh(), REFRESH_INTERVAL);
@@ -769,6 +772,128 @@ class Dashboard {
             }
         } catch (error) {
             console.error('Failed to remove user:', error);
+        }
+    }
+
+    // ==================== Server Configuration API ====================
+
+    setupServerConfigHandlers() {
+        const saveBtn = document.getElementById('save-server-config-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => this.saveServerConfig());
+        }
+    }
+
+    async loadServerConfig() {
+        try {
+            const response = await apiFetch(`${API_BASE}/config/server`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.serverConfig = data.data;
+                this.renderServerConfig();
+            }
+        } catch (error) {
+            console.error('Failed to load server config:', error);
+        }
+    }
+
+    renderServerConfig() {
+        if (!this.serverConfig) return;
+
+        const hostInput = document.getElementById('server-host');
+        const socksPortInput = document.getElementById('server-socks-port');
+        const httpPortInput = document.getElementById('server-http-port');
+        const apiPortInput = document.getElementById('server-api-port');
+        const restartWarning = document.getElementById('restart-warning');
+
+        if (hostInput) hostInput.value = this.serverConfig.host;
+        if (socksPortInput) socksPortInput.value = this.serverConfig.socks_port;
+        if (httpPortInput) httpPortInput.value = this.serverConfig.http_port;
+        if (apiPortInput) apiPortInput.value = this.serverConfig.api_port;
+        if (restartWarning) restartWarning.style.display = 'none';
+    }
+
+    async saveServerConfig() {
+        const hostInput = document.getElementById('server-host');
+        const socksPortInput = document.getElementById('server-socks-port');
+        const httpPortInput = document.getElementById('server-http-port');
+        const apiPortInput = document.getElementById('server-api-port');
+        const statusEl = document.getElementById('server-save-status');
+        const restartWarning = document.getElementById('restart-warning');
+        const saveBtn = document.getElementById('save-server-config-btn');
+
+        // Validate
+        const host = hostInput ? hostInput.value.trim() : '0.0.0.0';
+        const socksPort = socksPortInput ? parseInt(socksPortInput.value) : 1080;
+        const httpPort = httpPortInput ? parseInt(httpPortInput.value) : 8080;
+        const apiPort = apiPortInput ? parseInt(apiPortInput.value) : 3000;
+
+        if (!host) {
+            this.shakeElement(hostInput);
+            return;
+        }
+
+        const validatePort = (port, input) => {
+            if (isNaN(port) || port < 1 || port > 65535) {
+                this.shakeElement(input);
+                return false;
+            }
+            return true;
+        };
+
+        if (!validatePort(socksPort, socksPortInput) ||
+            !validatePort(httpPort, httpPortInput) ||
+            !validatePort(apiPort, apiPortInput)) {
+            return;
+        }
+
+        // Show saving state
+        if (saveBtn) saveBtn.disabled = true;
+        if (statusEl) {
+            statusEl.textContent = 'Saving...';
+            statusEl.className = 'save-status';
+        }
+
+        try {
+            const response = await apiFetch(`${API_BASE}/config/server`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    host,
+                    socks_port: socksPort,
+                    http_port: httpPort,
+                    api_port: apiPort
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.serverConfig = data.data;
+                if (statusEl) {
+                    statusEl.textContent = '✓ Saved';
+                    statusEl.className = 'save-status success';
+                }
+                if (restartWarning && data.data.requires_restart) {
+                    restartWarning.style.display = 'block';
+                }
+                setTimeout(() => {
+                    if (statusEl) statusEl.textContent = '';
+                }, 3000);
+            } else {
+                if (statusEl) {
+                    statusEl.textContent = data.message || 'Save failed';
+                    statusEl.className = 'save-status error';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to save server config:', error);
+            if (statusEl) {
+                statusEl.textContent = 'Save failed';
+                statusEl.className = 'save-status error';
+            }
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
         }
     }
 

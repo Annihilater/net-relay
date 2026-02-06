@@ -395,20 +395,34 @@
 
                 <!-- Server Info -->
                 <section class="panel info-panel">
-                    <h2>ℹ️ Server Information</h2>
-                    <div class="info-grid">
+                    <h2>ℹ️ Server Configuration</h2>
+                    <p class="panel-desc">Configure server ports (requires restart to take effect)</p>
+                    <div class="info-grid server-config-grid">
                         <div class="info-item">
-                            <span class="info-label">SOCKS5 Proxy</span>
-                            <code id="socks-addr">:1080</code>
+                            <label class="info-label" for="server-host">Host</label>
+                            <input type="text" id="server-host" class="server-input" value="0.0.0.0" placeholder="0.0.0.0">
                         </div>
                         <div class="info-item">
-                            <span class="info-label">HTTP Proxy</span>
-                            <code id="http-addr">:8080</code>
+                            <label class="info-label" for="server-socks-port">SOCKS5 Port</label>
+                            <input type="number" id="server-socks-port" class="server-input" value="1080" min="1" max="65535">
                         </div>
                         <div class="info-item">
-                            <span class="info-label">Dashboard API</span>
-                            <code id="api-addr">:3000</code>
+                            <label class="info-label" for="server-http-port">HTTP Port</label>
+                            <input type="number" id="server-http-port" class="server-input" value="8080" min="1" max="65535">
                         </div>
+                        <div class="info-item">
+                            <label class="info-label" for="server-api-port">API Port</label>
+                            <input type="number" id="server-api-port" class="server-input" value="3000" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="server-actions">
+                        <button class="btn btn-primary" id="save-server-config-btn">
+                            <span>💾 Save Configuration</span>
+                        </button>
+                        <span id="server-save-status" class="save-status"></span>
+                    </div>
+                    <div id="restart-warning" class="restart-warning" style="display: none;">
+                        ⚠️ Configuration saved. Server restart required for changes to take effect.
                     </div>
                 </section>
             </div>

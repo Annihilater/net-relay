@@ -153,6 +153,22 @@ impl ConfigManager {
         let config = self.config.read().await;
         config.dashboard.authenticate(username, password)
     }
+
+    /// Get server configuration.
+    pub async fn get_server(&self) -> ServerConfig {
+        let config = self.config.read().await;
+        config.server.clone()
+    }
+
+    /// Update server configuration.
+    pub async fn update_server(&self, server: ServerConfig) -> anyhow::Result<()> {
+        let mut config = self.config.write().await;
+        config.server = server;
+        if let Some(path) = &self.config_path {
+            config.save_to_file(path)?;
+        }
+        Ok(())
+    }
 }
 
 /// Server binding configuration.
