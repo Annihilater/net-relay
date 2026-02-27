@@ -79,6 +79,32 @@ endif
 	scp target/x86_64-unknown-linux-gnu/release/net-relay $(REMOTE):~/net-relay/
 	@echo "Binary updated on $(REMOTE)"
 
+# 部署为 systemd 服务
+deploy-systemd: build-linux
+ifndef REMOTE
+	$(error REMOTE is not set. Usage: make deploy-systemd REMOTE=user@host)
+endif
+	ssh $(REMOTE) 'mkdir -p ~/net-relay-pkg/scripts'
+	scp target/x86_64-unknown-linux-gnu/release/net-relay $(REMOTE):~/net-relay-pkg/
+	scp config.example.toml $(REMOTE):~/net-relay-pkg/
+	scp -r frontend $(REMOTE):~/net-relay-pkg/
+	scp scripts/deploy/install-service.sh scripts/deploy/uninstall-service.sh scripts/deploy/upgrade-service.sh scripts/deploy/net-relay.service $(REMOTE):~/net-relay-pkg/scripts/
+	ssh $(REMOTE) 'chmod +x ~/net-relay-pkg/scripts/*.sh'
+	@echo "Package uploaded to $(REMOTE):~/net-relay-pkg/"
+	@echo "Run: ssh $(REMOTE) 'sudo ~/net-relay-pkg/scripts/install-service.sh'"
+
+# 远程升级 systemd 服务
+upgrade-systemd: build-linux
+ifndef REMOTE
+	$(error REMOTE is not set. Usage: make upgrade-systemd REMOTE=user@host)
+endif
+	ssh $(REMOTE) 'mkdir -p ~/net-relay-pkg/scripts'
+	scp target/x86_64-unknown-linux-gnu/release/net-relay $(REMOTE):~/net-relay-pkg/
+	scp config.example.toml $(REMOTE):~/net-relay-pkg/
+	scp scripts/deploy/upgrade-service.sh $(REMOTE):~/net-relay-pkg/scripts/
+	ssh $(REMOTE) 'chmod +x ~/net-relay-pkg/scripts/*.sh && sudo ~/net-relay-pkg/scripts/upgrade-service.sh'
+	@echo "Upgrade complete on $(REMOTE)"
+
 help:
 	@echo "Net-Relay Makefile"
 	@echo ""
@@ -94,3 +120,5 @@ help:
 	@echo "  make test         - Run tests"
 	@echo "  make deploy REMOTE=user@host  - Deploy to remote server"
 	@echo "  make deploy-bin REMOTE=user@host  - Deploy only binary"
+	@echo "  make deploy-systemd REMOTE=user@host  - Deploy as systemd service"
+	@echo "  make upgrade-systemd REMOTE=user@host - Upgrade systemd service"

@@ -101,6 +101,8 @@ jobs:
           mkdir -p "$ARCHIVE_NAME/scripts"
           cp scripts/deploy/*.sh "$ARCHIVE_NAME/scripts/"
           chmod +x "$ARCHIVE_NAME/scripts/"*.sh
+          # Copy systemd service file
+          cp scripts/deploy/net-relay.service "$ARCHIVE_NAME/scripts/"
           # Create archive with directory structure
           tar -czvf "${ARCHIVE_NAME}.tar.gz" "$ARCHIVE_NAME"
 

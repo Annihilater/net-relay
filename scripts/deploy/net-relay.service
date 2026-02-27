@@ -1,0 +1,45 @@
+[Unit]
+Description=Net-Relay Proxy Server
+Documentation=https://github.com/yourusername/net-relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=net-relay
+Group=net-relay
+
+# Paths - adjust if installed elsewhere
+ExecStart=/opt/net-relay/net-relay -c /opt/net-relay/config.toml
+WorkingDirectory=/opt/net-relay
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Environment
+Environment=RUST_LOG=info
+
+# Logging - use journal by default
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=net-relay
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/opt/net-relay/logs
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
